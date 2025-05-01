@@ -9,7 +9,6 @@ def bitcoinkeygen(seed):
     # create a private key (from our generated bits)
     priv = PrivateKey(secret_exponent=seed)
 
-
     # compressed is the default
     print("\nPrivate key WIF:", priv.to_wif(compressed=True))
 
@@ -18,6 +17,7 @@ def bitcoinkeygen(seed):
 
     taprootpub = pub.get_taproot_address()
     print("\nTaproot:", taprootpub.to_string())
+
 
     # compressed is the default
     print("Public key:", pub.to_hex(compressed=True))
