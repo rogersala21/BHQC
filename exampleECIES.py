@@ -19,21 +19,21 @@ from cryptography.hazmat.primitives import padding as sym_padding
 receiver_private_key = ec.generate_private_key(ec.SECP192R1())
 receiver_public_key = receiver_private_key.public_key()
 
-# ----------- ECIES Encryption ----------
+# ----------- ECIES Encryption (Sender) ----------
 def ecies_encrypt(receiver_public_key, message: bytes):
     # 1. Ephemeral key: It's a one use key that gives forward secrecy (each message has a different key). The public key is the one that will be sent to the receiver of the message.
     ephemeral_private_key = ec.generate_private_key(ec.SECP192R1())
     ephemeral_public_key = ephemeral_private_key.public_key()
 
-    # 2. ECDH (Elliptic Curve Diffie-Hellman)
+    # 2. ECDH (Elliptic Curve Diffie-Hellman) method to generate a shared key between two participants (finding a shared point in the EC).
     shared_key = ephemeral_private_key.exchange(ec.ECDH(), receiver_public_key)
 
     # 3. Symmetric key derivation
-    derived_key = HKDF(
-        algorithm=hashes.SHA256(),
-        length=16,
-        salt=None,
-        info=b'ecies',
+    derived_key = HKDF(                 #HMAC-based Key Derivation Function (extract and expand secret information in a symmetric secure key with a fixed size).
+        algorithm=hashes.SHA256(),      #Using sha256 algorithm
+        length=16,                      #Choose the length of symmetric key (16 = 128bits)
+        salt=None,                      #Optional (helps to protect from reused key attacks)
+        info=b'ecies',                  #Optional (just to denote the purpose of the key)
     ).derive(shared_key)
 
     # 4. AES-CBC
