@@ -1,8 +1,12 @@
 from coincurve import PrivateKey, PublicKey
 from bitcoinutils.keys import PublicKey as BitcoinPublicKey
+from bitcoinutils.setup import setup
+
+
 
 #This version is for testing the Schnorr key aggregation, but is vulnerable to rogue key attacks. As far as I am concerned, for the purpose of the honeypot, rogue key attacks don't affect us, but it is important to be aware of them.
 #The script of the protocol that will add all the pubkeys will need to ensure all pubkeys are valid and not repeated.
+setup("testnet")
 
 # Generate two private keys
 priv1 = PrivateKey()
