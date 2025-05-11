@@ -18,6 +18,11 @@ from cryptography.hazmat.primitives import padding as sym_padding
 # No private key needed here, dp is unknown, and it's what the QC needs to solve in order to get all the funds.
 receiver_private_key = ec.generate_private_key(ec.SECP192R1())
 receiver_public_key = receiver_private_key.public_key()
+public_key_bytes = receiver_public_key.public_bytes(
+    encoding=serialization.Encoding.X962,
+    format=serialization.PublicFormat.CompressedPoint
+)
+print("Public key:", public_key_bytes.hex()) #Compressed pubkey that is 25 bytes long
 
 # ----------- ECIES Encryption (Sender) ----------
 def ecies_encrypt(receiver_public_key, message: bytes):
