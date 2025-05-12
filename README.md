@@ -35,7 +35,7 @@ This is the "last" step of the protocol.
 
 ### QC Redeem script
 The target for a QC will be breaking a smaller elliptic curve private key dp, this will enable to decrypt al C's and in consequence, obtaining al dg's that after being aggregated, will enable spending all the funds of the honeypot.
-This script recieves a dp and a BTC address and returns a transaction ready to broadcast with all the honeypot funds sent to the desired address.
+This script recieves a dp and a BTC address (NO, BECAUSE IF MORE FUNDS ADDED LATER, SCRIPT JUST SPENDS THE FIRST INPUT) and returns a transaction ready to broadcast with all the honeypot funds sent to the desired address (NO, IT WILL RETURN THE PRIVATEKEY READY TO IMPORT INTO A WALLET).
 
 ## Important considerations
 There are two main failure points with different consequences:
