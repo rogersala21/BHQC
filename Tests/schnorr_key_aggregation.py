@@ -2,7 +2,6 @@ from coincurve import PrivateKey, PublicKey
 from bitcoinutils.keys import PublicKey as BitcoinPublicKey
 from bitcoinutils.keys import PrivateKey as BitcoinPrivateKey
 from bitcoinutils.setup import setup
-import time
 
 
 
