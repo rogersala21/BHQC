@@ -56,8 +56,8 @@ for i in range(1000):
         address = agg_pub_btc.get_address()
 
         # Test 1 each 100 iterations wrong key to simulate a failure
-        if i % 100 == 0:
-            priv_agg_btc= BitcoinPrivateKey.from_bytes(priv1.secret)
+        #if i % 100 == 0:
+            #priv_agg_btc= BitcoinPrivateKey.from_bytes(priv1.secret)
 
         # Sign and verify
         signature = priv_agg_btc.sign_message(message)
@@ -124,9 +124,10 @@ for i in range(1000):
 
         # Get address
         address = agg_pub_btc.get_address()
+
         # Test 1 each 100 iterations wrong key to simulate a failure
-        if i % 100 == 0:
-            priv_agg_btc= BitcoinPrivateKey.from_bytes(priv1.secret)
+        #if i % 100 == 0:
+            #priv_agg_btc= BitcoinPrivateKey.from_bytes(priv1.secret)
 
         # Sign and verify
         signature = priv_agg_btc.sign_message(message)
