@@ -61,6 +61,7 @@ for i in range(1000):
 
         # Sign and verify
         signature = priv_agg_btc.sign_message(message)
+        assert signature is not None
         if BitcoinPublicKey.verify_message(address.to_string(), signature, message):
             success_count += 1
         else:
@@ -86,7 +87,7 @@ start_time = time.time()
 success_count = 0
 
 for i in range(1000):
-    # Generate three private keys
+    # Generate three private keys with coincurve library
     priv1 = PrivateKey()
     priv2 = PrivateKey()
     priv3 = PrivateKey()
@@ -129,6 +130,7 @@ for i in range(1000):
 
         # Sign and verify
         signature = priv_agg_btc.sign_message(message)
+        assert signature is not None
         if BitcoinPublicKey.verify_message(address.to_string(), signature, message):
             success_count += 1
         else:
