@@ -4,7 +4,7 @@ from bitcoinutils.keys import PrivateKey as BitcoinPrivateKey
 from bitcoinutils.setup import setup
 import time
 
-# In this one we perform a final aggegation of all keys generated in the previous tests
+# This test is the same as test_schnorr_key_aggregation.py but with a final aggregation of all keys generated in the previous tests to test the correctness of the aggregation process when a large number of keys are aggregated together.
 
 setup("testnet")
 # Define the curve order
@@ -17,7 +17,7 @@ print("\n--------------------------------------\n")
 # Message to sign
 message = "Schnorr key aggregation test"
 
-# Lists to store all keys
+# Lists to store all keys for later aggregation
 all_priv_keys_test1 = []
 all_pub_keys_test1 = []
 
@@ -95,11 +95,14 @@ print(f"\nTest completed in {total_time:.2f} seconds")
 print(f"Total success: {success_count}/1000 ({success_count / 10:.2f}%)")
 print(f"Average time per iteration: {total_time / 1000:.4f} seconds")
 
+
+
+# Same test but with three keys to test the correctness of the aggregation process when a large number of keys are aggregated together.
 print("-------------------------")
 print("-------------------------")
 print("\nStarting 1000 three-key aggregation tests...")
 
-# Lists to store all keys
+# Lists to store all keys for later aggregation
 all_priv_keys_test2 = []
 all_pub_keys_test2 = []
 
@@ -180,11 +183,14 @@ print(f"\nThree-key test completed in {total_time:.2f} seconds")
 print(f"Total success: {success_count}/1000 ({success_count / 10:.2f}%)")
 print(f"Average time per iteration: {total_time / 1000:.4f} seconds")
 
+
+
+# Perform large aggregation for 2000 keys list (from test 1)
+
 print("\n-------------------------")
 print("Large Key Aggregation Tests")
 print("-------------------------")
 
-# Perform large aggregation for 2000 keys (from test 1)
 print("\nAggregating 2000 keys from test 1...")
 start_time = time.time()
 
@@ -230,6 +236,8 @@ except Exception as e:
 
 total_time = time.time() - start_time
 print(f"2000-key aggregation completed in {total_time:.2f} seconds")
+
+
 
 # Perform large aggregation for 3000 keys (from test 2)
 print("\nAggregating 3000 keys from test 2...")
@@ -320,6 +328,10 @@ print(f"3000-key aggregation completed in {total_time:.2f} seconds")
 #Total success: 1000/1000 (100.00%)
 #Average time per iteration: 0.0741 seconds
 
+
+# This is the result of the test set, which aggregates 2000 keys and does a signature test to check the correctness of the aggregation in a large scale.
+# Then it aggregates 3000 keys and does a signature test to check the correctness of the aggregation in a large scale.
+# As can be seen, the public key verification and signature verification are successful for both aggregations.
 #-------------------------
 #Large Key Aggregation Tests
 #-------------------------
