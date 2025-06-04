@@ -101,3 +101,7 @@ print("------------------------")
 # Transform the aggregated private key to bitcoinutils private key to do a test tx
 privagg = BitcoinPrivateKey.from_bytes(agg_secret2.secret)
 print("\nPrivate key WIF:", privagg.to_wif(compressed=True))
+
+# Bitcoinutils publickey to coincurve public key
+pub1_utils = BitcoinPublicKey.from_hex(pub1btc.to_hex())
+print("Pub1 utils to coincurve:", pub1_utils.to_hex())
