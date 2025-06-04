@@ -1,4 +1,5 @@
 import os
+import uuid
 from bitcoinutils.setup import setup
 from bitcoinutils.keys import PrivateKey
 
@@ -27,12 +28,15 @@ def bitcoinkeygen(seed):
     # compressed is the default
     print("Public key:", pub.to_hex(compressed=True))
 
+    # unique suffix for file names to avoid collisions when coordinator aggregates keys
+    unique_suffix = str(uuid.uuid4())
+
     # save public and private keys to files
-    pub_path = os.path.join(KEYS_DIR, "public_key_SHARE_THIS_FILE.txt")
+    pub_path = os.path.join(KEYS_DIR, f"public_key_{unique_suffix}_SHARE_THIS_FILE.txt")
     with open(pub_path, "w") as pub_file:
         pub_file.write(pub.to_hex(compressed=True))
 
-    priv_path = os.path.join(KEYS_DIR, "private_key_DO_NOT_SHARE.txt")
+    priv_path = os.path.join(KEYS_DIR, f"private_key_{unique_suffix}_DO_NOT_SHARE.txt")
     with open(priv_path, "w") as priv_file:
         priv_file.write(priv.to_wif(compressed=True))
 
