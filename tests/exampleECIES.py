@@ -110,6 +110,7 @@ ephemeral_pub, iv, ct = ecies_encrypt(receiver_public_key, message)
 #print(ct.hex())
 print(ephemeral_pub.hex())
 print(iv.hex())
+print(ct.hex())
 
 ephemeral_pub_hex = ephemeral_pub.hex()
 iv_hex = iv.hex()
