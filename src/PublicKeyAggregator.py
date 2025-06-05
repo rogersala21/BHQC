@@ -32,7 +32,7 @@ def hash_public_key(agg_point):
     agg_point_bytes = bytes.fromhex(agg_point_hex)
     # Hash the aggregated public key using SHA-256
     hash_value = hashlib.sha256(agg_point_bytes).digest()
-    print(hash_value.hex())
+    #print(hash_value.hex())
     return hash_value
 
 def find_valid_curve_point(hash_value, curve, max_attempts=100):
@@ -47,11 +47,11 @@ def find_valid_curve_point(hash_value, curve, max_attempts=100):
     while not valid_point_found and hash_attempts < max_attempts:
         x_bytes = hash_value[:24]  # Truncate to the first 24 bytes for secp192r1
         x_candidate = int.from_bytes(x_bytes, 'big') # Convert bytes to integer to get the x coordinate
-        print("x_candidate before mod p:", x_candidate)
+        #print("x_candidate before mod p:", x_candidate)
 
         # Make sure x is within field range of secp192r1
         x_candidate = x_candidate % p # Apply modulo p to ensure x is within the prime field size
-        print("x_candidate after mod p:", x_candidate)
+        #print("x_candidate after mod p:", x_candidate)
 
         # Calculate right side of equation: y² = x³ + ax + b (mod p)
         right_side = (pow(x_candidate, 3, p) + (a * x_candidate) % p + b) % p # Here we calculate the right side of the elliptic curve equation to find y²
@@ -69,10 +69,10 @@ def find_valid_curve_point(hash_value, curve, max_attempts=100):
             try:
                 # Create a point directly using the Point class from tinyec
                 point = Point(curve, x_candidate, y)
-                print(f"Valid point found after {hash_attempts} hashes!")
-                print(f"Hash value: {hash_value.hex()}")
-                print(f"Point: x={point.x}, y={point.y}")
-                print(x_candidate)
+                #print(f"Valid point found after {hash_attempts} hashes!")
+                #print(f"Hash value: {hash_value.hex()}")
+                #print(f"Point: x={point.x}, y={point.y}")
+                #print(x_candidate)
                 valid_point_found = True
                 return point, hash_attempts
             except Exception as e:
@@ -83,7 +83,7 @@ def find_valid_curve_point(hash_value, curve, max_attempts=100):
             # No valid y for this x, hash again
             hash_value = hashlib.sha256(hash_value).digest()
             hash_attempts += 1
-            print(f"No valid point yet, attempts: {hash_attempts-1}")
+            #print(f"No valid point yet, attempts: {hash_attempts-1}")
 
     print(f"Failed to find valid point after {hash_attempts} hash attempts")
     return None, hash_attempts
@@ -107,15 +107,15 @@ def serialize_point(point):
     )
 
 
-    print("Compressed public key:", compressed_bytes.hex())
+    #print("Compressed public key:", compressed_bytes.hex())
     return compressed_bytes
 
 def main():
     pubkeylist = load_public_keys(PUBKEY_DIR)
-    print("List of public keys:", [p.format().hex() for p in pubkeylist])
+    #print("List of public keys:", [p.format().hex() for p in pubkeylist])
 
     agg_point = aggregate_public_keys(pubkeylist)
-    print("Aggregated public key:", agg_point.format().hex())
+    #print("Aggregated public key:", agg_point.format().hex())
 
     hash_value = hash_public_key(agg_point)
 
@@ -129,6 +129,7 @@ def main():
             out_file.write(agg_point.format().hex() + '\n')
             out_file.write(str(attempts) + '\n')
             out_file.write(secp192r1_public_key.hex())
+        print("Public key aggregation completed successfully and saved to", out_path)
     else:
         print("No valid curve point found.")
 
