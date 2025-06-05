@@ -45,7 +45,7 @@ def main():
     #print(f"Your seed: {seed}")
     # Generation of Bitcoin private key (dg)
     bitcoinkeygen(seed)
-    print("Key Pair generated and saved successfully!\n")
+    print("Key Pair generated and saved successfully into ", KEYS_DIR)
 
 if __name__ == "__main__":
     main()
