@@ -108,7 +108,20 @@ message = b"Honeypot"       #Message as a byte string
 ephemeral_pub, iv, ct = ecies_encrypt(receiver_public_key, message)
 
 #print(ct.hex())
+print(ephemeral_pub.hex())
+print(iv.hex())
+
+ephemeral_pub_hex = ephemeral_pub.hex()
+iv_hex = iv.hex()
+ephemeral_bytes = bytes.fromhex(ephemeral_pub_hex)
+iv_bytes = bytes.fromhex(iv_hex)
+
+# Save ciphertext as hex
+ct_hex = ct.hex()
+
+# Later, load and convert back to bytes
+ct_bytes = bytes.fromhex(ct_hex)
 
 # Decypher
-deciphered_message = ecies_decrypt(receiver_private_key, ephemeral_pub, iv, ct)
+deciphered_message = ecies_decrypt(receiver_private_key, ephemeral_bytes, iv_bytes, ct_bytes)
 print("Deciphered message:", deciphered_message.decode())
