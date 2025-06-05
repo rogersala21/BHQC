@@ -7,7 +7,7 @@ from bitcoinutils.keys import PrivateKey
 KEYS_DIR = "../keys/participant"
 
 def seedgen():
-    print("Generating random 256 bits seed")
+    #print("Generating random 256 bits seed")
     # Use secrets to generate random bit sequence
     seed = secrets.randbits(256)
     return seed
@@ -18,15 +18,15 @@ def bitcoinkeygen(seed):
     # create a private key (from our generated bits)
     priv = PrivateKey(secret_exponent=seed)
     # compressed is the default
-    print("\nPrivate key WIF:", priv.to_wif(compressed=True))
+    #print("\nPrivate key WIF:", priv.to_wif(compressed=True))
     # get the public key
     pub = priv.get_public_key()
     taprootpub = pub.get_taproot_address()
-    print("\nTaproot address:", taprootpub.to_string())
+    #print("\nTaproot address:", taprootpub.to_string())
     # create the directory if it doesn't exist
     os.makedirs(KEYS_DIR, exist_ok=True)
     # compressed is the default
-    print("Public key:", pub.to_hex(compressed=True))
+    #print("Public key:", pub.to_hex(compressed=True))
     # unique suffix for file names to avoid collisions when coordinator aggregates keys
     unique_suffix = str(uuid.uuid4())
     # save public and private keys to files
@@ -42,9 +42,10 @@ def main():
     print("Generating your Key Pair and saving into .txt files...\n")
     # Generation of seed
     seed = seedgen()
-    print(f"Your seed: {seed}")
+    #print(f"Your seed: {seed}")
     # Generation of Bitcoin private key (dg)
     bitcoinkeygen(seed)
+    print("Key Pair generated and saved successfully!\n")
 
 if __name__ == "__main__":
     main()
