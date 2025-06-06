@@ -1,12 +1,19 @@
 import os
+import hashlib
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
+from tinyec import registry
+from tinyec.ec import Point
 
-# TODO: WILL BE NICE IF THE SCRIPTS CHECKS FIRST PUBKEY, AND DOES ALL THE HASHING TO SEE IF IS ALL OK
+
 # todo: IMPORT PRIVATEKEY FROM FOLDER, ... AND THEN SAVE ALL THE OUTPUTS IN A FOLDER
+
+AGGKEY_DIR = "../outputs/participant"
+
+
 
 
 receiver_private_key = ec.generate_private_key(ec.SECP192R1())
@@ -16,6 +23,28 @@ public_key_bytes = receiver_public_key.public_bytes(
     format=serialization.PublicFormat.CompressedPoint
 )
 
+
+def serialize_point(point):
+    # Format as uncompressed point (04 + x + y)
+    x_bytes = point.x.to_bytes(24, byteorder='big')  # 24 bytes for x secp192r1
+    y_bytes = point.y.to_bytes(24, byteorder='big')  # 24 bytes for y secp192r1
+    encoded_point = b'\x04' + x_bytes + y_bytes
+
+    # Create public key from the encoded point using cryptography library to match the format used in ECIES script
+    public_key = ec.EllipticCurvePublicKey.from_encoded_point(
+        ec.SECP192R1(),
+        encoded_point
+    )
+
+    # Get compressed format (the one that ECIES script uses)
+    compressed_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.X962, # X9.62 standard for elliptic curve public keys
+        format=serialization.PublicFormat.CompressedPoint # Compressed point format (02 or 03 prefix)
+    )
+
+
+    #print("Compressed public key:", compressed_bytes.hex())
+    return compressed_bytes
 
 def ecies_encrypt(receiver_public_key, message: bytes):
     # 1. Ephemeral key: It's a one use key that gives forward secrecy (each message has a different key). The public key is the one that will be sent to the receiver of the message.
@@ -50,8 +79,65 @@ def ecies_encrypt(receiver_public_key, message: bytes):
 
     return ephemeral_public_bytes, iv, ciphertext
 
+def agg_key_file_check():
+    #Checks BTC aggregated key, does the number of hashes and calculates the secp192 public key [don't trust, verify ;)]
+    file_path = os.path.join(AGGKEY_DIR, "aggregation_output.txt")
+
+    # Open the file that the coordinator sent to us and save its contents
+    if os.path.isfile(file_path) and file_path.endswith(".txt"):
+        with open(file_path, "r") as f:
+            agg_key_btc = f.readline().strip()
+            number_of_hashes = f.readline().strip()
+            secp192_pubkey = f.readline().strip()
+    else:
+        print(f"File does not exist or is not a valid .txt file.")
+
+    # Checking if the encryption public key is correct
+    agg_key_bytes = bytes.fromhex(agg_key_btc)
+    hash_value = agg_key_bytes
+    for _ in range(int(number_of_hashes)):
+        hash_value = hashlib.sha256(hash_value).digest()
+        #print(f"Hash value: {hash_value.hex()}")
+
+    curve = registry.get_curve('secp192r1')
+    # Get curve parameters (a, b and p) for secp192r1
+    a = curve.a
+    b = curve.b
+    p = curve.field.p # secp192r1 prime field size
+    x_bytes = hash_value[:24]
+    x_candidate = int.from_bytes(x_bytes, 'big')
+    x_candidate = x_candidate % p  # Apply modulo p to ensure x is within the prime field size
+    right_side = (pow(x_candidate, 3, p) + (a * x_candidate) % p + b) % p  # Here we calculate the right side of the elliptic curve equation to find y²
+    y = pow(right_side, (p + 1) // 4, p)
+    try:
+        # Create a point directly using the Point class from tinyec
+        point = Point(curve, x_candidate, y)
+        # print(f"Valid point found after {hash_attempts} hashes!")
+        # print(f"Hash value: {hash_value.hex()}")
+        # print(f"Point: x={point.x}, y={point.y}")
+        # print(x_candidate)
+        secp192r1_public_key = serialize_point(point)
+        return secp192r1_public_key.hex() == secp192_pubkey
+    except Exception as e:
+        print(f"Error creating point: {e}")
+
+
+
+
 
 def main():
+
+    check = agg_key_file_check()
+    #print(check)
+    if check:
+        print("Aggregated key file is valid, proceeding with encryption...")
+    else:
+        print("Aggregated key file is invalid, aborting encryption.")
+        return
+
+
+
+
     message = b"Honeypot"
 
     # Cypher
