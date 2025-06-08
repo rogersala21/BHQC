@@ -1,5 +1,6 @@
 import os
 import hashlib
+import re
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -9,19 +10,21 @@ from tinyec import registry
 from tinyec.ec import Point
 
 
-# todo: IMPORT PRIVATEKEY FROM FOLDER, ... AND THEN SAVE ALL THE OUTPUTS IN A FOLDER
-
 AGGKEY_DIR = "../outputs/participant"
+OUTPUTS_DIR = "../outputs/participant/ecies_output"
+KEYS_DIR = "../outputs/participant/keys"
 
 
 
-
-receiver_private_key = ec.generate_private_key(ec.SECP192R1())
-receiver_public_key = receiver_private_key.public_key()
-public_key_bytes = receiver_public_key.public_bytes(
-    encoding=serialization.Encoding.X962,
-    format=serialization.PublicFormat.CompressedPoint
-)
+def get_private_key():
+    for filename in os.listdir(KEYS_DIR):
+        match = re.match(r"private_key_(.+?)_DO_NOT_SHARE\.txt", filename)
+        if match:
+            file_path = os.path.join(KEYS_DIR, filename)
+            with open(file_path, "r") as f:
+                privatekey_wif = f.read().strip()
+                return privatekey_wif
+    raise FileNotFoundError("No private key file with expected pattern found.")
 
 
 def serialize_point(point):
@@ -117,33 +120,72 @@ def agg_key_file_check():
         # print(f"Point: x={point.x}, y={point.y}")
         # print(x_candidate)
         secp192r1_public_key = serialize_point(point)
-        return secp192r1_public_key.hex() == secp192_pubkey
+        return secp192r1_public_key.hex() == secp192_pubkey, secp192_pubkey
     except Exception as e:
         print(f"Error creating point: {e}")
         return False
 
+# Function to get the unique suffix from the public key file names
+def get_unique_suffix():
+    for filename in os.listdir(KEYS_DIR):
+        match = re.match(r"public_key_(.+?)_SHARE_THIS_FILE\.txt", filename)
+        if match:
+            return match.group(1)
+    raise FileNotFoundError("No public key file with expected pattern found.")
+
+def get_public_key():
+    for filename in os.listdir(KEYS_DIR):
+        match = re.match(r"public_key_(.+?)_SHARE_THIS_FILE\.txt", filename)
+        if match:
+            file_path = os.path.join(KEYS_DIR, filename)
+            with open(file_path, "r") as f:
+                pubkey_hex = f.read().strip()
+                return pubkey_hex
+    raise FileNotFoundError("No public key file with expected pattern found.")
 
 def main():
 
-    check = agg_key_file_check()
-    #print(check)
+    check, receiver_public_key_hex = agg_key_file_check()
+
     if check:
         print("Aggregated key file is valid, proceeding with encryption...")
     else:
         print("Aggregated key file is invalid, aborting encryption.")
         return
 
+    receiver_public_key_bytes = bytes.fromhex(receiver_public_key_hex)
+    receiver_public_key = ec.EllipticCurvePublicKey.from_encoded_point(
+        ec.SECP192R1(),
+        receiver_public_key_bytes
+    )
+    print("Receiver's public key:", receiver_public_key_hex)
 
-
-
-    message = b"Honeypot"
+    private_wif = get_private_key()
+    print(private_wif)
+    private_bytes = private_wif.encode('utf-8')
+    print("Message bytes:", private_bytes)
 
     # Cypher
-    ephemeral_pub, iv, ct = ecies_encrypt(receiver_public_key, message)
+    ephemeral_pub, iv, ct = ecies_encrypt(receiver_public_key, private_bytes)
 
-    print(ephemeral_pub.hex())
-    print(iv.hex())
+
+    pubkey = get_public_key()
+    print(pubkey)
+
     print(ct.hex())
+    print(iv.hex())
+    print(ephemeral_pub.hex())
+
+    unique_suffix = get_unique_suffix()
+    out_path = os.path.join(OUTPUTS_DIR, f"ecies_output_{unique_suffix}")
+    with open(out_path, "w") as out_file:
+        out_file.write(pubkey + '\n')
+        out_file.write(ct.hex() + '\n')
+        out_file.write(iv.hex() + '\n')
+        out_file.write(ephemeral_pub.hex())
+    print("ECIES encryption completed successfully and saved to", out_path)
+
+
 
 
 if __name__ == "__main__":
