@@ -169,8 +169,8 @@ def main():
     ephemeral_pub, iv, ct = ecies_encrypt(receiver_public_key, private_bytes)
 
 
-    pubkey = get_public_key()
-    print(pubkey)
+    pubkey_participant = get_public_key()
+    print(pubkey_participant)
 
     print(ct.hex())
     print(iv.hex())
@@ -179,7 +179,7 @@ def main():
     unique_suffix = get_unique_suffix()
     out_path = os.path.join(OUTPUTS_DIR, f"ecies_output_{unique_suffix}")
     with open(out_path, "w") as out_file:
-        out_file.write(pubkey + '\n')
+        out_file.write(pubkey_participant + '\n')
         out_file.write(ct.hex() + '\n')
         out_file.write(iv.hex() + '\n')
         out_file.write(ephemeral_pub.hex())
