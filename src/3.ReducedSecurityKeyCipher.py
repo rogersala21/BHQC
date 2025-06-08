@@ -159,23 +159,23 @@ def main():
         ec.SECP192R1(),
         receiver_public_key_bytes
     )
-    print("Receiver's public key:", receiver_public_key_hex)
+    #print("Receiver's public key:", receiver_public_key_hex)
 
     private_wif = get_private_key()
-    print(private_wif)
+    #print(private_wif)
     private_bytes = private_wif.encode('utf-8')
-    print("Message bytes:", private_bytes)
+    #print("Message bytes:", private_bytes)
 
     # Cypher
     ephemeral_pub, iv, ct = ecies_encrypt(receiver_public_key, private_bytes)
 
 
     pubkey_participant = get_public_key()
-    print(pubkey_participant)
+    #print(pubkey_participant)
 
-    print(ct.hex())
-    print(iv.hex())
-    print(ephemeral_pub.hex())
+    #print(ct.hex())
+    #print(iv.hex())
+    #print(ephemeral_pub.hex())
 
     # Save the output to a file with a unique suffix, same as the public key file
     unique_suffix = get_unique_suffix()
