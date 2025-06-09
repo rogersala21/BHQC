@@ -12,9 +12,9 @@ def seedgen():
     seed = secrets.randbits(256)
     return seed
 
-def bitcoinkeygen(seed, unique_suffix):
+def bitcoinkeygen(seed, unique_suffix, network):
     # always remember to setup the network
-    setup("testnet")
+    setup(network)
 
     # create a private key (from our generated bits)
     priv = PrivateKey(secret_exponent=seed)
@@ -22,7 +22,6 @@ def bitcoinkeygen(seed, unique_suffix):
     #print("\nPrivate key WIF:", priv.to_wif(compressed=True))
     # get the public key
     pub = priv.get_public_key()
-    taprootpub = pub.get_taproot_address()
     #print("\nTaproot address:", taprootpub.to_string())
     # create the directory if it doesn't exist
     os.makedirs(KEYS_DIR, exist_ok=True)
@@ -39,6 +38,17 @@ def bitcoinkeygen(seed, unique_suffix):
 
 def main():
     print("Welcome to BHQC protocol!\n")
+    # Initialize Bitcoin network
+    while True:
+        net_choice = input("Select network: (m)ainnet or (t)estnet?: ").strip().lower()
+        if net_choice == "t":
+            network = "testnet"
+            break
+        elif net_choice == "m":
+            network = "mainnet"
+            break
+        else:
+            print("Invalid input. Please enter 't' for testnet or 'm' for mainnet.")
     # unique suffix for file names to avoid collisions when coordinator aggregates keys
     unique_suffix = str(uuid.uuid4())
     print("Generating your Key Pair and saving into .txt files...\n")
@@ -46,7 +56,7 @@ def main():
     seed = seedgen()
     #print(f"Your seed: {seed}")
     # Generation of Bitcoin private key (dg)
-    bitcoinkeygen(seed, unique_suffix)
+    bitcoinkeygen(seed, unique_suffix, network)
     print("Key Pair generated and saved successfully into ", KEYS_DIR)
 
 if __name__ == "__main__":
