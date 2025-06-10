@@ -165,6 +165,8 @@ def main():
     else:
         print("No valid curve point found.")
 
+    return secp192r1_public_key.hex()
+
 
 
 if __name__ == "__main__":
