@@ -67,7 +67,7 @@ def drop_origins(s):
 
 
 
-#descriptor = 'tr(cNgKxqT5sJKjFgRT8rnmjKitf5SxpRj3burvRw1fgJxHx3C5aXxs)'
+#descriptor = 'tr(wif)'
 
 #descriptor_with_checksum = descsum_create(descriptor)
 #print(descriptor_with_checksum)
