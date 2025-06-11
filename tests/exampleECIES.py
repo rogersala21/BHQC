@@ -24,6 +24,16 @@ public_key_bytes = receiver_public_key.public_bytes(
 )
 print("Public key:", public_key_bytes.hex()) #Compressed pubkey that is 25 bytes long
 
+
+with open('../outputs/stealer/private_key.txt', 'wb') as f:
+    pem = receiver_private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    f.write(pem)
+
+
 # LOADED KEY FROM CONNNECT BTCUTILS ECIES
 #compressed_public_key_hex = "02fbff07a5468c10147f2a20d1a9ecf80fe3a30c1bdf7641b0"
 #compressed_public_key_bytes = bytes.fromhex(compressed_public_key_hex)
