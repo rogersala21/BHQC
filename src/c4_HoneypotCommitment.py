@@ -142,7 +142,7 @@ def main(ask_create_op_return=True):
             else:
                 print("Invalid input. Please enter 'yes' or 'no'.")
 
-    return network, taproot_address.to_string()
+    return network, taproot_address.to_string(), tweak_int
 
 if __name__ == "__main__":
     main()
