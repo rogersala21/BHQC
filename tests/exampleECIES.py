@@ -25,7 +25,7 @@ public_key_bytes = receiver_public_key.public_bytes(
 print("Public key:", public_key_bytes.hex()) #Compressed pubkey that is 25 bytes long
 
 
-with open('../outputs/stealer/private_key.txt', 'wb') as f:
+with open('../outputs/attacker/private_key.txt', 'wb') as f:
     pem = receiver_private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.TraditionalOpenSSL,
