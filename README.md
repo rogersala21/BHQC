@@ -53,7 +53,7 @@ The Honeypot Address Generation Protocol (HAGP) is a multi-phase, distributed pr
 
 - In a post-quantum scenario, an attacker with **dw** can decrypt all **ci** to recover each **dbi**.
 - All **dbi** are aggregated to reconstruct the final private key (**db**) for **Pb**.
-- The tweaked private key is derived and imported into a Bitcoin wallet to spend the funds.
+- The tweaked private key is derived and transformed into a wallet descriptor ready to be imported into Bitcoin Core to spend the funds.
 
 ---
 
@@ -62,11 +62,12 @@ The Honeypot Address Generation Protocol (HAGP) is a multi-phase, distributed pr
 - **Languages/Libraries**: Python, `bitcoinutils`, `coincurve`, `cryptography`, `tinyec`, `secrets`, `hashlib`
 - **Directory Structure**:
   - `outputs/participant/keys`: Participant key pairs
+  - `outputs/participant/ecies_output`: Encrypted keys
   - `outputs/coordinator/key_agg_input`: Public keys for aggregation
   - `outputs/coordinator/key_agg_output`: Aggregation results
-  - `outputs/participant/ecies_output`: Encrypted keys
   - `outputs/coordinator/honeypot_commitment`: Commitment data
   - `outputs/coordinator/honeypot_address.txt`: Final address
+  - `outputs/attacker/bitcoin_core_import.txt`: Wallet descriptor
 
 ---
 
