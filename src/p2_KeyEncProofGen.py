@@ -6,6 +6,9 @@ from tinyec.ec import Point
 from tinyec.ec import SubGroup, Curve
 import secrets
 import json
+from bitcoinutils.keys import PrivateKey
+from bitcoinutils.setup import setup
+
 
 # SECP256K1 parameters
 p  = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
@@ -30,7 +33,7 @@ weak_curve = Curve(a, b, field, name='secp192r1')
 size_weak = 24
 
 number_of_entities = 16
-padding_range = 56  # Number of bits for padding
+padding_range = 64  # Number of bits for padding
 
 AGGKEY_DIR = "../outputs/participant"
 OUTPUTS_DIR = "../outputs/participant/ecies_output"
@@ -45,10 +48,46 @@ def priv_key_segmentation(priv_key):
     return v_bytes, k_bytes
 
 
-def dummy_bitcoin_privkey():
-    #  to be replaced with the bitcoin private key fetched from the file
-    priv_key = ec.generate_private_key(ec.SECP256K1())
+def derive_private_key():
+    priv_key_int = load_private_key(KEYS_DIR)
+    # Create EC private key object from integer
+    priv_key = ec.derive_private_key(priv_key_int, ec.SECP256K1())
     return priv_key
+
+def wif_to_int(wif):
+    priv = PrivateKey(wif)
+    priv_bytes = priv.to_bytes()
+    di = int.from_bytes(priv_bytes, 'big')
+    return di
+
+def load_private_key(keys_dir):
+    # Initialize Bitcoin network
+    while True:
+        net_choice = input("Select network: (m)ainnet or (t)estnet?: ").strip().lower()
+        if net_choice == "t":
+            network = "testnet"
+            break
+        elif net_choice == "m":
+            network = "mainnet"
+            break
+        else:
+            print("Invalid input. Please enter 't' for testnet or 'm' for mainnet.")
+
+    setup(network)
+
+    # Get the private key from the file
+    files = [f for f in os.listdir(keys_dir) if re.match(r'private_key_.*_DO_NOT_SHARE\.txt', f)]
+    if not files:
+        raise FileNotFoundError(f"No private key file found in {keys_dir}")
+    if len(files) > 1:
+        raise FileExistsError(f"Multiple private key files found in {keys_dir}. Expected only one.")
+    priv_key_path = os.path.join(keys_dir, files[0])
+    with open(priv_key_path, "r") as f:
+        wif_key = f.read().strip()
+
+    # Convert WIF to integer private key
+    priv_key_int = wif_to_int(wif_key)
+    return priv_key_int
 
 def padding(v_bytes, k_bytes):
     a_bytes = secrets.randbelow(1 << padding_range)
@@ -58,7 +97,6 @@ def padding(v_bytes, k_bytes):
 
 
 def proof_gen(private_key):
-    #  to be replcaed with the bitcoin private key feched from the file
     v, k = priv_key_segmentation(private_key.private_numbers().private_value) 
     assert(v < weak_curve.field.n)
     assert(k < weak_curve.field.n)
@@ -160,11 +198,11 @@ def proof_verification(json_data):
 
     lhs_weak = btc_curve.g * (s_k % btc_curve.field.n)
     rhs_weak = R_k + public_key_k * (digest_int % btc_curve.field.n)
-    assert lhs_btc.x == rhs_btc.x and lhs_btc.y == rhs_btc.y, "Weak-curve check failed for the lower bits"
+    assert lhs_btc.x == rhs_btc.x and lhs_btc.y == rhs_btc.y, "BTC-curve check failed for the lower bits"
     print("Proof is verified.")
 
 if __name__ == "__main__":
-    private_key = dummy_bitcoin_privkey()  #  to be replaced with the bitcoin private key fetched from the file
+    private_key = derive_private_key()
     proof_gen(private_key)
     if not os.path.exists(PROOF_DIR):
         raise FileNotFoundError(f"Proof directory does not exist: {PROOF_DIR}")
