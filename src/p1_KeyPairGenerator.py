@@ -29,10 +29,10 @@ def bitcoinkeygen(seed, unique_suffix, network):
     #print("Public key:", pub.to_hex(compressed=True))
 
     # save public and private keys to files
-    pub_path = os.path.join(KEYS_DIR, f"public_key_{unique_suffix}_SHARE_THIS_FILE.txt")
+    pub_path = os.path.join(KEYS_DIR, f"public_key_{unique_suffix}_{network}_SHARE_THIS_FILE.txt")
     with open(pub_path, "w") as pub_file:
         pub_file.write(pub.to_hex(compressed=True))
-    priv_path = os.path.join(KEYS_DIR, f"private_key_{unique_suffix}_DO_NOT_SHARE.txt")
+    priv_path = os.path.join(KEYS_DIR, f"private_key_{unique_suffix}_{network}_DO_NOT_SHARE.txt")
     with open(priv_path, "w") as priv_file:
         priv_file.write(priv.to_wif(compressed=True))
 

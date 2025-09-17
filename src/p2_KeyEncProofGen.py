@@ -61,27 +61,20 @@ def wif_to_int(wif):
     return di
 
 def load_private_key(keys_dir):
-    # Initialize Bitcoin network
-    while True:
-        net_choice = input("Select network: (m)ainnet or (t)estnet?: ").strip().lower()
-        if net_choice == "t":
-            network = "testnet"
-            break
-        elif net_choice == "m":
-            network = "mainnet"
-            break
-        else:
-            print("Invalid input. Please enter 't' for testnet or 'm' for mainnet.")
-
-    setup(network)
-
     # Get the private key from the file
     files = [f for f in os.listdir(keys_dir) if re.match(r'private_key_.*_DO_NOT_SHARE\.txt', f)]
     if not files:
         raise FileNotFoundError(f"No private key file found in {keys_dir}")
     if len(files) > 1:
         raise FileExistsError(f"Multiple private key files found in {keys_dir}. Expected only one.")
-    priv_key_path = os.path.join(keys_dir, files[0])
+    priv_key_filename = files[0]
+    priv_key_path = os.path.join(keys_dir, priv_key_filename)
+    # Extract network from filename
+    match = re.search(r'_(mainnet|testnet)_DO_NOT_SHARE\.txt$', priv_key_filename)
+    if not match:
+        raise ValueError(f"Network not found in private key filename: {priv_key_filename}")
+    network = match.group(1)
+    setup(network)
     with open(priv_key_path, "r") as f:
         wif_key = f.read().strip()
 
