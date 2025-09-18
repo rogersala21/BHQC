@@ -33,27 +33,31 @@ def seedgen():
     seed = secrets.randbits(seed_bits_calc())
     return seed
 
-def bitcoinkeygen(seed, unique_suffix, network):
+def bitcoinkeygen(seed, network):
     # always remember to setup the network
     setup(network)
 
     # create a private key (from our generated bits)
     priv = PrivateKey(secret_exponent=seed)
     # compressed is the default
-    #print("\nPrivate key WIF:", priv.to_wif(compressed=True))
+
     # get the public key
     pub = priv.get_public_key()
-    #print("\nTaproot address:", taprootpub.to_string())
+   
     # create the directory if it doesn't exist
     os.makedirs(KEYS_DIR, exist_ok=True)
-    # compressed is the default
-    #print("Public key:", pub.to_hex(compressed=True))
+
+
+    # Extract x-coordinate from public key (uncompressed)
+    pub_hex_uncompressed = pub.to_hex(compressed=False)
+    pub_x_hex = pub_hex_uncompressed[2:66]
+    pub_x_int = int(pub_x_hex, 16)
 
     # save public and private keys to files
-    pub_path = os.path.join(KEYS_DIR, f"public_key_{unique_suffix}_{network}_SHARE_THIS_FILE.txt")
+    pub_path = os.path.join(KEYS_DIR, f"public_key_{pub_x_int}_{network}_SHARE_THIS_FILE.txt")
     with open(pub_path, "w") as pub_file:
         pub_file.write(pub.to_hex(compressed=True))
-    priv_path = os.path.join(KEYS_DIR, f"private_key_{unique_suffix}_{network}_DO_NOT_SHARE.txt")
+    priv_path = os.path.join(KEYS_DIR, f"private_key_{pub_x_int}_{network}_DO_NOT_SHARE.txt")
     with open(priv_path, "w") as priv_file:
         priv_file.write(priv.to_wif(compressed=True))
 
@@ -78,7 +82,7 @@ def main():
     seed = seedgen()
     #print(f"Your seed: {seed}")
     # Generation of Bitcoin private key (dg)
-    bitcoinkeygen(seed, unique_suffix, network)
+    bitcoinkeygen(seed, network)
     print("Key Pair generated and saved successfully into ", KEYS_DIR)
 
 if __name__ == "__main__":
