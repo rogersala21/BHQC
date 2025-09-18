@@ -1,15 +1,36 @@
+import json
 import os
 import uuid
 import secrets
+import math
 from bitcoinutils.setup import setup
 from bitcoinutils.keys import PrivateKey
 
 KEYS_DIR = "../outputs/participant/keys"
+SETUP_DIR = "../setup.json"
+
+def load_setup():
+    # Load setup data from JSON file
+    if not os.path.exists(SETUP_DIR):
+        print(f"Setup file not found: {SETUP_DIR}")
+        return None
+    with open(SETUP_DIR, "r") as setup_file:
+        setup_data = json.load(setup_file)
+    
+    return setup_data
+
+def seed_bits_calc():
+    setup_data = load_setup()
+    if setup_data is None:
+        return None
+    num_participants = setup_data.get("num_participants")
+    # Calculate bits of the seed (192-log2(n))
+    bits_seed = 192 - math.log2(num_participants)
+    return math.floor(bits_seed)
 
 def seedgen():
-    #print("Generating random 256 bits seed")
     # Use secrets to generate random bit sequence
-    seed = secrets.randbits(256)
+    seed = secrets.randbits(seed_bits_calc())
     return seed
 
 def bitcoinkeygen(seed, unique_suffix, network):
@@ -49,6 +70,7 @@ def main():
             break
         else:
             print("Invalid input. Please enter 't' for testnet or 'm' for mainnet.")
+    
     # unique suffix for file names to avoid collisions when coordinator aggregates keys
     unique_suffix = str(uuid.uuid4())
     print("Generating your Key Pair and saving into .txt files...\n")
