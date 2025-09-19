@@ -31,7 +31,6 @@ Gy = 326705100207588169780830851305070431844712733806592432759389043357573374824
 field = SubGroup(p, g =(Gx, Gy), n=n, h=1)
 btc_curve = Curve(a, b, field, name='secp256k1')
 size_btc = 32
-key_chunk_size = 64
 H_256 = point_extraction(btc_curve, btc_curve.g.x.to_bytes(size_btc, 'big') + btc_curve.g.y.to_bytes(size_btc, 'big'))
 
 
@@ -47,7 +46,15 @@ field = SubGroup(p, g=(Gx, Gy), n=n, h=1)
 weak_curve = Curve(a, b, field, name='secp192r1')
 size_weak = 24
 H_192 = point_extraction(weak_curve, weak_curve.g.x.to_bytes(size_weak, 'big') + weak_curve.g.y.to_bytes(size_weak, 'big'))
+
+# Scheme setup parameters 
+
 number_of_entities = 16
+number_of_chunks = 3
+b_x = 64 
+b_f = 3
+b_c = 124
+b_g = 192
 # To do : handle the case of non-power of 2
 # over_flow_bits = math.log2(number_of_entities)
 over_flow_bits = 4
@@ -58,13 +65,30 @@ OUTPUTS_DIR = "../outputs/participant/ecies_output"
 KEYS_DIR = "../outputs/participant/keys"
 PROOF_DIR = "../outputs/participant/proofs"
 
+def compact_object(chunks):
+    for id in range(number_of_chunks):
+        if id == 0 :
+            result = chunks[id]
+        else: 
+            result += chunks[id] * (2 ** (id * b_x)) 
+    return result
 
-def priv_key_segmentation(priv_key): 
-    assert priv_key <= btc_curve.field.n
-    v_bytes = priv_key >> 128
-    k_bytes = priv_key & ((1 << 128) - 1)
-    return v_bytes, k_bytes
+def value_segmentation(value): 
+    assert value <= weak_curve.field.n 
+    value_bytes = value.to_bytes(size_weak, 'big')
 
+    # Calculate chunk size in bytes
+    chunk_size = b_x // 8  # Use integer division
+
+    chunks = []
+    for i in range(number_of_chunks):
+        start = i * chunk_size
+        end = (i + 1) * chunk_size
+        chunk = value_bytes[start:end]
+        chunks.append(int.from_bytes(chunk, 'big'))
+
+    # Return chunks in MSB-first order
+    return chunks[::-1]
 def is_on_curve(point, curve):
     x, y = point.x, point.y
     lhs = y * y % curve.field.p
@@ -124,44 +148,73 @@ def challenge_computation(points):
     return int.from_bytes(digest, 'big')
 
 def dummy_priv_key(): 
-    priv_key_value = secrets.randbelow(2 ** key_chunk_size)
+    priv_key_value = secrets.randbelow(2 ** (192 - over_flow_bits))
     priv_key = ec.derive_private_key(priv_key_value, ec.SECP256K1())
     assert(priv_key.private_numbers().private_value == priv_key_value)
     return priv_key
 
+def array_to_point(curve, array):
+    points = [] 
+    for id in range(len(array)): 
+        try :
+            points.append(Point(curve, array[id][0], array[id][1]))
+        except:
+            raise("point not on curve")
+    return points
 
-def iterate_proofs (r_256, H_256, r_192, H_192, btc_curve, weak_curve, private_key, MAX_ITER=100):
-    for i in range(MAX_ITER):
-        # Generate fresh randomness
-        t_256 = secrets.randbelow(2 ** key_chunk_size)
-        t_192 = secrets.randbelow(2 ** key_chunk_size)
-        k = secrets.randbelow(weak_curve.field.n)
+def iterate_proofs (r_256, H_256, r_192, H_192, btc_curve, weak_curve, private_key, C_192, C_256, MAX_ITER=1000):
+    K_192, K_256, z, s_192, s_256, C_192_proof, C_256_proof, p_192_proof, p_256_proof = [], [], [], [], [], [], [], [], []
+    for chunk in range(number_of_chunks):
+        if chunk == 0 :
+            C_256_temp = private_key[chunk] * btc_curve.g + H_256 * r_256[chunk]
+            C_192_temp = private_key[chunk] * weak_curve.g + H_192 * r_192[chunk]
 
-        # Commitments in BTC curve
-        K_256 = k * btc_curve.g + t_256 * H_256
+        else: 
+            C_256_temp += private_key[chunk] * (2 ** (chunk * b_x)) * btc_curve.g + H_256 * r_256[chunk] * (2 ** (chunk * b_x))
+            C_192_temp += private_key[chunk] * (2 ** (chunk * b_x)) * weak_curve.g + H_192 * r_192[chunk] * (2 ** (chunk * b_x))
 
-        # Commitments in NIST curve
-        K_192 = k * weak_curve.g + t_192 * H_192
+        C_192_proof.append([(private_key[chunk] * weak_curve.g + H_192 * r_192[chunk]).x, (private_key[chunk] * weak_curve.g + H_192 * r_192[chunk]).y])
+        C_256_proof.append([(private_key[chunk] * btc_curve.g + H_256 * r_256[chunk]).x, (private_key[chunk] * btc_curve.g + H_256 * r_256[chunk]).y])
+        p_192_proof.append([(private_key[chunk] * weak_curve.g).x, (private_key[chunk] * weak_curve.g).y])
+        p_256_proof.append([(private_key[chunk] * btc_curve.g).x, (private_key[chunk] * btc_curve.g).y])
 
-        # Curve challenge
-        curve_challenge = challenge_computation([K_256, K_192]) >> 132
+        for i in range(MAX_ITER):
+            # Generate fresh randomness
+            t_256 = secrets.randbelow(btc_curve.field.n)
+            t_192 = secrets.randbelow(weak_curve.field.n)
+            k = secrets.randbelow(2 ** (b_x + b_c + b_f) -1)
 
-        # Compute z
-        z = k + curve_challenge * private_key.private_numbers().private_value
+            # Commitments in BTC curve
+            K_256_temp = k * btc_curve.g + t_256 * H_256
 
-        if 2**188 <= z < weak_curve.field.n:
-            s_256 = (t_256 + curve_challenge * r_256) % btc_curve.field.n
-            s_192 = (t_192 + curve_challenge * r_192) % weak_curve.field.n
-            return  K_256, K_192, z, s_192, s_256
+            # Commitments in NIST curve
+            K_192_temp = k * weak_curve.g + t_192 * H_192
 
-    raise ValueError("Too many iterations in proof generation")
+            # Curve challenge
+            curve_challenge = challenge_computation([K_256_temp, K_192_temp]) >> (256 - b_c) 
+
+            # Compute z
+            z_temp = k + curve_challenge * private_key[chunk] 
+            if 2** (b_x + b_c) <= z_temp and z_temp < 2** (b_x+ b_c + b_f ) -1 :
+                s_256.append((t_256 + curve_challenge * r_256[chunk]) % btc_curve.field.n)
+                s_192.append((t_192 + curve_challenge * r_192[chunk]) % weak_curve.field.n)
+                K_192.append([K_192_temp.x, K_192_temp.y])
+                K_256.append([K_256_temp.x, K_256_temp.y])
+                z.append(z_temp)
+                break
+        if (i > MAX_ITER):
+            raise ValueError("Too many iterations in proof generation")
+    assert C_192_temp.x == C_192.x and C_192.y == C_192_temp.y, "The chunked commitments don't match in the weaker curve "
+    assert C_256_temp.x == C_256.x and C_256.y == C_256_temp.y, "The chunked commitments don't match in Bitcoin's curve "
+    return K_192, K_256, s_192  , s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof
 
 
 def proof_gen():
     # Parameters in the Bitcoin's curve 
     private_key = dummy_priv_key()
+    assert private_key.private_numbers().private_value <= weak_curve.field.n >> over_flow_bits
     p_key_256 = Point(btc_curve, private_key.public_key().public_numbers().x, private_key.public_key().public_numbers().y)
-    r_256 = secrets.randbelow(2 ** key_chunk_size)
+    r_256 = secrets.randbelow(weak_curve.field.n)
     C_256 = p_key_256 + (H_256 * r_256)
     #  Proof of knowledge of descrete log in the same curve 
     r_p_256 = secrets.randbelow(btc_curve.field.n)
@@ -169,12 +222,11 @@ def proof_gen():
     R_256 = r_p_256 * btc_curve.g
     R_c_256 = r_p_256 * btc_curve.g + r_c_256 * H_256
     challenge = challenge_computation([R_256, R_c_256])
-
     alpha_p_256 = r_p_256 + (challenge * private_key.private_numbers().private_value) % btc_curve.field.n
     alpha_c_256 = r_c_256 + (challenge * r_256) % btc_curve.field.n
     # Parameters in the NIST P-192 curve
     p_key_192 = weak_curve.g * private_key.private_numbers().private_value
-    r_192 = secrets.randbelow(2 ** key_chunk_size)
+    r_192 = secrets.randbelow(weak_curve.field.n)
     C_192 = p_key_192 + (H_192 * r_192)
     #  Proof of knowledge of descrete log in the same curve 
     r_p_192 = secrets.randbelow(weak_curve.field.n)
@@ -182,21 +234,25 @@ def proof_gen():
     R_192 = r_p_192 * weak_curve.g
     R_c_192 = r_p_192 * weak_curve.g + r_c_192 * H_192 
     challenge = challenge_computation([R_192, R_c_192])
-
     alpha_p_192 = r_p_192 + (challenge * private_key.private_numbers().private_value) % weak_curve.field.n
     alpha_c_192 = r_c_192 + (challenge * r_192) % weak_curve.field.n
-    K_256, K_192, z, s_192, s_256 = iterate_proofs(r_256, H_256, r_192, H_192, btc_curve, weak_curve, private_key)
+    # Cross-curve proofs
+    private_key_chunks = value_segmentation(value=private_key.private_numbers().private_value)
+
+    r_256_chunks = value_segmentation(value= r_256)
+    r_192_chunks = value_segmentation(value= r_192)
+    K_192, K_256, s_192, s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof = iterate_proofs(r_256_chunks, H_256, r_192_chunks, H_192, btc_curve, weak_curve, private_key_chunks, C_192, C_256)
 
     # Proof parameters 
     json_data = {
-        "p_256": [p_key_256.x, p_key_256.y],
-        "p_192": [p_key_192.x, p_key_192.y],
+        "p_256": p_256_proof,
+        "p_192": p_192_proof,
         "R_256": [R_256.x, R_256.y],
         "R_c_256": [R_c_256.x, R_c_256.y],
-        "K_256": [K_256.x, K_256.y],
-        "K_192": [K_192.x, K_192.y],
-        "C_192": [C_192.x, C_192.y],
-        "C_256": [C_256.x, C_256.y],
+        "K_256": K_256,
+        "K_192": K_192,
+        "C_192": C_192_proof,
+        "C_256": C_256_proof,
         "R_192": [R_192.x, R_192.y],
         "R_c_192": [R_c_192.x, R_c_192.y],
         "z": z, 
@@ -213,59 +269,65 @@ def proof_gen():
         f.write(json.dumps(json_data))
 
 def proof_verification(json_data):
-    p_256 = Point(btc_curve, json_data["p_256"][0], json_data["p_256"][1])
-    p_192 = Point(weak_curve, json_data["p_192"][0], json_data["p_192"][1])
-    R_256 = Point(btc_curve, json_data["R_256"][0], json_data["R_256"][1])
+    R_256 = Point(btc_curve, json_data["R_256"][0], json_data["R_256"][1]) 
     R_c_256 = Point(btc_curve, json_data["R_c_256"][0], json_data["R_c_256"][1])
     R_192 = Point(weak_curve, json_data["R_192"][0], json_data["R_192"][1])
-    R_c_192 = Point(weak_curve, json_data["R_c_192"][0], json_data["R_c_192"][1])   
+    R_c_192 = Point(weak_curve, json_data["R_c_192"][0], json_data["R_c_192"][1]) 
     s_192 = json_data["s_192"]
     s_256 = json_data["s_256"]
-    K_256 = Point(btc_curve, json_data["K_256"][0], json_data["K_256"][1])
-    K_192 = Point(weak_curve, json_data["K_192"][0], json_data["K_192"][1])
-    C_192 = Point(weak_curve, json_data["C_192"][0], json_data["C_192"][1])
-    C_256 = Point(btc_curve, json_data["C_256"][0], json_data["C_256"][1])    
+    C_256 = array_to_point(btc_curve, json_data["C_256"])
+    K_256 = array_to_point(btc_curve, json_data["K_256"])
+    p_256 = array_to_point(btc_curve, json_data["p_256"])
+    C_192 = array_to_point(weak_curve, json_data["C_192"])
+    K_192 = array_to_point(weak_curve, json_data["K_192"])
+    p_192 = array_to_point(weak_curve, json_data["p_192"])
+
     z = json_data["z"]
     alpha_p_256 = json_data["alpha_p_256"]
     alpha_c_256 = json_data["alpha_c_256"]
 
     alpha_p_192 = json_data["alpha_p_192"]
     alpha_c_192 = json_data["alpha_c_192"]
-
-
-
-    curve_challenge = challenge_computation([K_256, K_192]) >> 132 
-    assert z >= 2** 188 and z < weak_curve.field.n, "z is out of range"
-
-    #  Check the signature validity
-    # ===== Verification on weak curve (per paper: s_v * G192 == R'_v + m * C'_v) =====
-    lhs_weak = weak_curve.g * z + s_192 * H_192
-    rhs_weak = K_192 + curve_challenge * C_192
-    assert lhs_weak.x == rhs_weak.x and lhs_weak.y == rhs_weak.y, "Weak-curve check failed for the transition between curves"
+    p_256_proof = compact_object(p_256)
+    p_192_proof = compact_object(p_192)
+    C_256_proof = compact_object(C_256)
+    C_192_proof = compact_object(C_192)
 
     # ===== Verification on NIST curve =====  
     challenge = challenge_computation([R_192, R_c_192]) 
     lhs = alpha_p_192 * weak_curve.g 
-    rhs = R_192 + challenge * p_192
+    rhs = R_192 + challenge * p_192_proof
     assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
     rhs = alpha_p_192 * weak_curve.g + alpha_c_192 * H_192
-    lhs = R_c_192 + challenge * C_192
+    lhs = R_c_192 + challenge * C_192_proof
     assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
 
     # ===== Verification on BTC curve =====   
     challenge = challenge_computation([R_256, R_c_256])
     lhs = alpha_p_256 * btc_curve.g 
-    rhs = R_256 + challenge * p_256
+    rhs = R_256 + challenge * p_256_proof
     assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
     rhs = alpha_p_256 * btc_curve.g + alpha_c_256 * H_256
-    lhs = R_c_256 + challenge * C_256
+    lhs = R_c_256 + challenge * C_256_proof
     assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
 
-    # ===== Verification on BTC curve transition to NIST  =====
+    # ====== Check the transitions on chunks ==========  
+    for id in range(number_of_chunks):
+        curve_challenge = challenge_computation([K_256[id], K_192[id]]) >> 132 
+        assert    2** (b_x + b_c) <= z[id] and z[id] < 2** (b_x+ b_c + b_f ) -1 , "z is out of range"
 
-    lhs_btc = btc_curve.g * z + s_256 * H_256
-    rhs_btc = K_256 + curve_challenge * C_256
-    assert lhs_btc.x == rhs_btc.x and lhs_btc.y == rhs_btc.y, "BTC-curve check failed on the transition between curves"
+        #  Check the signature validity
+        # ===== Verification on weak curve (per paper: s_v * G192 == R'_v + m * C'_v) =====
+        lhs_weak = weak_curve.g * z[id] + s_192[id] * H_192
+        rhs_weak = K_192[id] + curve_challenge * C_192[id]
+        assert lhs_weak.x == rhs_weak.x and lhs_weak.y == rhs_weak.y, "Weak-curve check failed for the transition between curves"
+
+
+        # ===== Verification on BTC curve transition to NIST  =====
+
+        lhs_btc = btc_curve.g * z[id] + s_256[id] * H_256
+        rhs_btc = K_256[id] + curve_challenge * C_256[id]
+        assert lhs_btc.x == rhs_btc.x and lhs_btc.y == rhs_btc.y, "BTC-curve check failed on the transition between curves"
 
     print("Proof is verified.")
 
