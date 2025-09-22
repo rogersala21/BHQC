@@ -147,11 +147,11 @@ def challenge_computation(points):
     digest = hashlib.sha256(input).digest() 
     return int.from_bytes(digest, 'big')
 
-def dummy_priv_key(): 
-    priv_key_value = secrets.randbelow(2 ** (192 - over_flow_bits))
-    priv_key = ec.derive_private_key(priv_key_value, ec.SECP256K1())
-    assert(priv_key.private_numbers().private_value == priv_key_value)
-    return priv_key
+#def dummy_priv_key(): 
+#    priv_key_value = secrets.randbelow(2 ** (192 - over_flow_bits))
+#    priv_key = ec.derive_private_key(priv_key_value, ec.SECP256K1())
+#    assert(priv_key.private_numbers().private_value == priv_key_value)
+#    return priv_key
 
 def array_to_point(curve, array):
     points = [] 
@@ -211,7 +211,7 @@ def iterate_proofs (r_256, H_256, r_192, H_192, btc_curve, weak_curve, private_k
 
 def proof_gen():
     # Parameters in the Bitcoin's curve 
-    private_key = dummy_priv_key()
+    private_key = derive_private_key()
     assert private_key.private_numbers().private_value <= weak_curve.field.n >> over_flow_bits
     p_key_256 = Point(btc_curve, private_key.public_key().public_numbers().x, private_key.public_key().public_numbers().y)
     r_256 = secrets.randbelow(weak_curve.field.n)
