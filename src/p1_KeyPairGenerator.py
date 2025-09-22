@@ -1,6 +1,5 @@
 import json
 import os
-import uuid
 import secrets
 import math
 from bitcoinutils.setup import setup
@@ -75,8 +74,6 @@ def main():
         else:
             print("Invalid input. Please enter 't' for testnet or 'm' for mainnet.")
     
-    # unique suffix for file names to avoid collisions when coordinator aggregates keys
-    unique_suffix = str(uuid.uuid4())
     print("Generating your Key Pair and saving into .txt files...\n")
     # Generation of seed
     seed = seedgen()
