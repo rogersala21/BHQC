@@ -3,11 +3,14 @@ import hashlib
 import re
 import secrets
 import json
+import math
 from cryptography.hazmat.primitives.asymmetric import ec
 from tinyec.ec import Point
 from tinyec.ec import SubGroup, Curve
 from bitcoinutils.keys import PrivateKey
 from bitcoinutils.setup import setup
+
+SETUP_DIR = "../setup.json"
 
 def point_extraction(curve, seed):
     while True:
@@ -56,8 +59,26 @@ b_f = 3
 b_c = 124
 b_g = 192
 # To do : handle the case of non-power of 2
+def load_setup():
+    # Load setup data from JSON file
+    if not os.path.exists(SETUP_DIR):
+        print(f"Setup file not found: {SETUP_DIR}")
+        return None
+    with open(SETUP_DIR, "r") as setup_file:
+        setup_data = json.load(setup_file)
+    
+    return setup_data
+
+def seed_bits_calc():
+    setup_data = load_setup()
+    if setup_data is None:
+        return None
+    num_participants = setup_data.get("num_participants")
+    # Calculate bits of the seed (192-log2(n))
+    bits_seed = math.log2(num_participants)
+    return math.floor(bits_seed)
 # over_flow_bits = math.log2(number_of_entities)
-over_flow_bits = 4
+over_flow_bits = seed_bits_calc()
 padding_range = 64  # Number of bits for padding
 
 AGGKEY_DIR = "../outputs/participant"
