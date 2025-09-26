@@ -52,7 +52,7 @@ H_192 = point_extraction(weak_curve, weak_curve.g.x.to_bytes(size_weak, 'big') +
 
 # Scheme setup parameters 
 
-number_of_entities = 16
+number_of_entities = 64
 number_of_chunks = 3
 b_x = 64 
 b_f = 3
@@ -76,7 +76,7 @@ def seed_bits_calc():
     num_participants = setup_data.get("num_participants")
     # Calculate bits of the seed (192-log2(n))
     bits_seed = math.log2(num_participants)
-    return math.floor(bits_seed)
+    return math.ceil(bits_seed)
 # over_flow_bits = math.log2(number_of_entities)
 over_flow_bits = seed_bits_calc()
 padding_range = 64  # Number of bits for padding
@@ -183,14 +183,22 @@ def array_to_point(curve, array):
             raise("point not on curve")
     return points
 
-def iterate_proofs (r_256, H_256, r_192, H_192, btc_curve, weak_curve, private_key, C_192, C_256, MAX_ITER=1000):
+def iterate_proofs (H_256, H_192, btc_curve, weak_curve, private_key, number_of_carry_on_bits, MAX_ITER=1000):
     K_192, K_256, z, s_192, s_256, C_192_proof, C_256_proof, p_192_proof, p_256_proof = [], [], [], [], [], [], [], [], []
+    r_256, r_192 = [], []
+    assert (not number_of_carry_on_bits % number_of_chunks), "The number of carry on bits should divide the number of chunks"
     for chunk in range(number_of_chunks):
+        r_256.append(secrets.randbelow(btc_curve.field.n >> int(number_of_carry_on_bits/number_of_chunks)))
+        r_192.append(secrets.randbelow(weak_curve.field.n >> int(number_of_carry_on_bits/number_of_chunks)))
         if chunk == 0 :
+            r_256_temp = r_256[chunk]
+            r_192_temp = r_192[chunk]
             C_256_temp = private_key[chunk] * btc_curve.g + H_256 * r_256[chunk]
             C_192_temp = private_key[chunk] * weak_curve.g + H_192 * r_192[chunk]
 
         else: 
+            r_256_temp = (r_256[chunk] * (2 ** (chunk * b_x))+ r_256_temp) % btc_curve.field.n 
+            r_192_temp = (r_192[chunk] * (2 ** (chunk * b_x))+ r_192_temp) % weak_curve.field.n
             C_256_temp += private_key[chunk] * (2 ** (chunk * b_x)) * btc_curve.g + H_256 * r_256[chunk] * (2 ** (chunk * b_x))
             C_192_temp += private_key[chunk] * (2 ** (chunk * b_x)) * weak_curve.g + H_192 * r_192[chunk] * (2 ** (chunk * b_x))
 
@@ -225,9 +233,7 @@ def iterate_proofs (r_256, H_256, r_192, H_192, btc_curve, weak_curve, private_k
                 break
         if (i > MAX_ITER):
             raise ValueError("Too many iterations in proof generation")
-    assert C_192_temp.x == C_192.x and C_192.y == C_192_temp.y, "The chunked commitments don't match in the weaker curve "
-    assert C_256_temp.x == C_256.x and C_256.y == C_256_temp.y, "The chunked commitments don't match in Bitcoin's curve "
-    return K_192, K_256, s_192  , s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof
+    return K_192, K_256, s_192  , s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof, r_192_temp, r_256_temp, C_192_temp, C_256_temp
 
 
 def proof_gen():
@@ -235,8 +241,13 @@ def proof_gen():
     private_key = derive_private_key()
     assert private_key.private_numbers().private_value <= weak_curve.field.n >> over_flow_bits
     p_key_256 = Point(btc_curve, private_key.public_key().public_numbers().x, private_key.public_key().public_numbers().y)
-    r_256 = secrets.randbelow(weak_curve.field.n)
+
+    private_key_chunks = value_segmentation(value=private_key.private_numbers().private_value)
+    K_192, K_256, s_192, s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof, r_192, r_256, C_192_summed, C_256_summed = iterate_proofs(H_256, H_192, btc_curve, weak_curve, private_key_chunks, over_flow_bits)        # Cross-curve proofs
+
     C_256 = p_key_256 + (H_256 * r_256)
+    assert C_256_summed.x == C_256.x and C_256.y == C_256_summed.y , "the addition of chunks does not add up in the commitments"
+
     #  Proof of knowledge of descrete log in the same curve 
     r_p_256 = secrets.randbelow(btc_curve.field.n)
     r_c_256 = secrets.randbelow(btc_curve.field.n)
@@ -247,8 +258,9 @@ def proof_gen():
     alpha_c_256 = r_c_256 + (challenge * r_256) % btc_curve.field.n
     # Parameters in the NIST P-192 curve
     p_key_192 = weak_curve.g * private_key.private_numbers().private_value
-    r_192 = secrets.randbelow(weak_curve.field.n)
     C_192 = p_key_192 + (H_192 * r_192)
+    assert C_192_summed.x == C_192.x and C_192.y == C_192_summed.y , "the addition of chunks does not add up in the commitments"
+
     #  Proof of knowledge of descrete log in the same curve 
     r_p_192 = secrets.randbelow(weak_curve.field.n)
     r_c_192 = secrets.randbelow(weak_curve.field.n)
@@ -257,12 +269,6 @@ def proof_gen():
     challenge = challenge_computation([R_192, R_c_192])
     alpha_p_192 = r_p_192 + (challenge * private_key.private_numbers().private_value) % weak_curve.field.n
     alpha_c_192 = r_c_192 + (challenge * r_192) % weak_curve.field.n
-    # Cross-curve proofs
-    private_key_chunks = value_segmentation(value=private_key.private_numbers().private_value)
-
-    r_256_chunks = value_segmentation(value= r_256)
-    r_192_chunks = value_segmentation(value= r_192)
-    K_192, K_256, s_192, s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof = iterate_proofs(r_256_chunks, H_256, r_192_chunks, H_192, btc_curve, weak_curve, private_key_chunks, C_192, C_256)
 
     # Proof parameters 
     json_data = {
