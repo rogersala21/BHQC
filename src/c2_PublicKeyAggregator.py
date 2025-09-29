@@ -3,14 +3,34 @@ import os
 from coincurve import PublicKey
 from tinyec import registry
 from tinyec.ec import Point
+from tinyec.ec import SubGroup, Curve
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 
 PROOF_DIR = "../outputs/participant/proofs"
 OUTPUTS_DIR = "../outputs/coordinator/key_agg_output"
 
+# SECP256K1 parameters
+p_256  = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
+n_256  = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+a_256  = 0
+b_256  = 7
+Gx_256 = 55066263022277343669578718895168534326250603453777594175500187360389116729240
+Gy_256 = 32670510020758816978083085130507043184471273380659243275938904335757337482424
+field_256 = SubGroup(p_256, g=(Gx_256, Gy_256), n=n_256, h=1)
+btc_curve = Curve(a_256, b_256, field_256, name='secp256k1')
+
+# SECP192R1 parameters  
+p_192  = 0xfffffffffffffffffffffffffffffffeffffffffffffffff
+a_192  = 0xfffffffffffffffffffffffffffffffefffffffffffffffc
+b_192  = 0x64210519e59c80e70fa7e9ab72243049feb8deecc146b9b1
+Gx_192 = 0x188da80eb03090f67cbf20eb43a18800f4ff0afd82ff1012
+Gy_192 = 0x07192b95ffc8da78631011ed6b24cdd573f977a11e794811
+n_192  = 0xffffffffffffffffffffffff99def836146bc9b1b4d22831
+field_192 = SubGroup(p_192, g=(Gx_192, Gy_192), n=n_192, h=1)
+weak_curve = Curve(a_192, b_192, field_192, name='secp192r1')
+
 def load_public_keys(proof_dir):
-    # We iterate through all public key files in the specified directory and create a list of PublicKey objects.
     btc_pubkeylist = []
     secp192_pubkeylist = []
     for filename in os.listdir(proof_dir):
@@ -18,27 +38,74 @@ def load_public_keys(proof_dir):
         if os.path.isfile(file_path) and filename.startswith("proof_") and filename.endswith(".json"):
             with open(file_path, "r") as f:
                 data = json.load(f)
-                btc_pubkey_coords = data.get("public_key_btc") # CHANGE FOR WHATEVER WE USE IN THE PROOF JSON
-                secp192_pubkey_coords = data.get("enc_point_k") # CHANGE FOR WHATEVER WE USE IN THE PROOF JSON
-                if btc_pubkey_coords is None and secp192_pubkey_coords is None:
-                    print(f"Warning: No public_key found in {filename}")
-                    continue
-                # Create PublicKey object from coordinates
-                if btc_pubkey_coords is not None:
-                    x = btc_pubkey_coords[0]
-                    y = btc_pubkey_coords[1]
-                    pubkey_btc = PublicKey.from_point(x, y)
-                    btc_pubkeylist.append(pubkey_btc)
-                # Create PublicKey coordinates list
-                if secp192_pubkey_coords is not None:
-                    x = secp192_pubkey_coords[0]
-                    y = secp192_pubkey_coords[1]
-                    secp192_pubkeylist.append((x, y))
 
-    print("SECP192 Public Key List:")
-    for pk_bytes in secp192_pubkeylist:
-        print(pk_bytes)
+                # Convert chunks to Point objects
+                btc_pubkey_chunks = data.get("p_256")
+                if btc_pubkey_chunks is not None and len(btc_pubkey_chunks) == 3:
+                    # Convert to Point
+                    p_256_points = array_to_point(btc_curve, btc_pubkey_chunks)
+                    # Compact_object to reconstruct
+                    reconstructed_btc_point = compact_object(p_256_points)
+                    
+                    try:
+                        pubkey_btc = PublicKey.from_point(reconstructed_btc_point.x, reconstructed_btc_point.y)
+                        btc_pubkeylist.append(pubkey_btc)
+                    except Exception as e:
+                        print(f"Error creating BTC PublicKey: {e}")
+
+                secp192_pubkey_chunks = data.get("p_192")
+                if secp192_pubkey_chunks is not None and len(secp192_pubkey_chunks) == 3:
+                    # Convert to Point object 
+                    p_192_points = array_to_point(weak_curve, secp192_pubkey_chunks)
+                    # Compact_object to reconstruct
+                    reconstructed_secp192_point = compact_object(p_192_points)
+                    
+                    secp192_pubkeylist.append((reconstructed_secp192_point.x, reconstructed_secp192_point.y))
+
     return btc_pubkeylist, secp192_pubkeylist
+
+def array_to_point(curve, array):
+    points = [] 
+    for id in range(len(array)): 
+        try :
+            points.append(Point(curve, array[id][0], array[id][1]))
+        except:
+            raise("point not on curve")
+    return points
+
+def compact_object(chunks):
+    b_x = 64  # TODO get from setup
+    number_of_chunks = 3
+    
+    for id in range(number_of_chunks):
+        if id == 0:
+            result = chunks[id]
+        else: 
+            result += chunks[id] * (2 ** (id * b_x)) 
+    return result
+
+def reconstruct_point_from_chunks(point_chunks, curve):
+    result_point = None
+    
+    for i, chunk in enumerate(point_chunks):
+        x, y = chunk[0], chunk[1]
+        
+        try:
+            # Create point from chunk coordinates
+            point = Point(curve, x, y)
+            
+            # Add to result
+            if result_point is None:
+                result_point = point
+            else:
+                result_point = result_point + point
+                
+        except Exception as e:
+            print(f"Error processing chunk {i}: {e}")
+            return None
+    
+    return result_point
+
 
 def aggregate_secp192r1_pubkeys(coords_list):
     # Combine the secp192r1 public keys into a single aggregated public key
