@@ -50,7 +50,7 @@ weak_curve = Curve(a, b, field, name='secp192r1')
 size_weak = 24
 H_192 = point_extraction(weak_curve, weak_curve.g.x.to_bytes(size_weak, 'big') + weak_curve.g.y.to_bytes(size_weak, 'big'))
 
-# Scheme setup parameters 
+# TODO Scheme setup parameters (put onto a setup file later)
 
 number_of_entities = 64
 number_of_chunks = 3
@@ -74,7 +74,7 @@ def seed_bits_calc():
     if setup_data is None:
         return None
     num_participants = setup_data.get("num_participants")
-    # Calculate bits of the seed (192-log2(n))
+    # Calculate bits of the seed (log2(n))
     bits_seed = math.log2(num_participants)
     return math.ceil(bits_seed)
 # over_flow_bits = math.log2(number_of_entities)
@@ -110,6 +110,7 @@ def value_segmentation(value):
 
     # Return chunks in MSB-first order
     return chunks[::-1]
+
 def is_on_curve(point, curve):
     x, y = point.x, point.y
     lhs = y * y % curve.field.p
