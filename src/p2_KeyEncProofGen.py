@@ -234,7 +234,7 @@ def iterate_proofs (H_256, H_192, btc_curve, weak_curve, private_key, number_of_
                 break
         if (i > MAX_ITER):
             raise ValueError("Too many iterations in proof generation")
-    return K_192, K_256, s_192  , s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof, r_192_temp, r_256_temp, C_192_temp, C_256_temp
+    return K_192, K_256, s_192  , s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof, r_192_temp, r_256_temp, C_192_temp, C_256_temp, r_256
 
 
 def proof_gen():
@@ -244,7 +244,7 @@ def proof_gen():
     p_key_256 = Point(btc_curve, private_key.public_key().public_numbers().x, private_key.public_key().public_numbers().y)
 
     private_key_chunks = value_segmentation(value=private_key.private_numbers().private_value)
-    K_192, K_256, s_192, s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof, r_192, r_256, C_192_summed, C_256_summed = iterate_proofs(H_256, H_192, btc_curve, weak_curve, private_key_chunks, over_flow_bits)        # Cross-curve proofs
+    K_192, K_256, s_192, s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof, r_192, r_256, C_192_summed, C_256_summed, random_chunks = iterate_proofs(H_256, H_192, btc_curve, weak_curve, private_key_chunks, over_flow_bits)        # Cross-curve proofs
 
     C_256 = p_key_256 + (H_256 * r_256)
     assert C_256_summed.x == C_256.x and C_256.y == C_256_summed.y , "the addition of chunks does not add up in the commitments"
@@ -291,10 +291,19 @@ def proof_gen():
         "alpha_p_192": alpha_p_192, 
         "alpha_c_192": alpha_c_192
     }
+    json_SNARK_input = {
+        "random_values": random_chunks, 
+        "H": [H_256.x,H_256.y], 
+        "private_key": private_key.private_numbers().private_value, 
+        "commitments": C_256_proof, 
+        "private_key_range": weak_curve.field.n >> over_flow_bits
+    }
     if not os.path.exists(PROOF_DIR):
         os.makedirs(PROOF_DIR)
-    with open(os.path.join(PROOF_DIR, f"proof_{private_key.public_key().public_numbers().x }.json"), "w") as f:
-        f.write(json.dumps(json_data))
+    with open(os.path.join(PROOF_DIR, f"proof_{private_key.public_key().public_numbers().x }.json"), "w") as proof_file:
+        proof_file.write(json.dumps(json_data))
+    with open(os.path.join(PROOF_DIR, f"input_SNARK_{private_key.public_key().public_numbers().x }.json"), "w") as input_file:
+        input_file.write(json.dumps(json_SNARK_input))
 
 def proof_verification(json_data):
     R_256 = Point(btc_curve, json_data["R_256"][0], json_data["R_256"][1]) 
@@ -366,7 +375,7 @@ if __name__ == "__main__":
         raise FileNotFoundError(f"Proof directory does not exist: {PROOF_DIR}")
 
     # Look for all proof files in the directory
-    files = [f for f in os.listdir(PROOF_DIR) if f.endswith(".json")]
+    files = [f for f in os.listdir(PROOF_DIR) if f.startswith("proof")]
     if not files:
         raise FileNotFoundError(f"No proof files found in {PROOF_DIR}")
 

@@ -1,0 +1,30 @@
+{
+  "name": "bhqc",
+  "version": "1.0.0",
+  "description": "**Honeypot Address Generation Protocol (HAGP)**",
+  "homepage": "https://github.com/rogersala21/BHQC#readme",
+  "bugs": {
+    "url": "https://github.com/rogersala21/BHQC/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rogersala21/BHQC.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@noble/secp256k1": "^3.0.0",
+    "chai": "^6.2.0",
+    "circom_tester": "^0.0.24",
+    "ffjavascript": "^0.3.1",
+    "secp256k1": "^5.0.1"
+  }
+}
