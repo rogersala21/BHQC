@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const F1Field = require("ffjavascript").F1Field;
 const Scalar = require("ffjavascript").Scalar;
+const fs = require("fs");
 exports.p = Scalar.fromString("21888242871839275222246405745257275088548364400416034343698204186575808495617");
 
 
@@ -24,6 +25,15 @@ function buffer2bitArray(b) {
     return res;
 }
 
+async function read_json(filePath) {
+    try {
+        const data = await fs.readFileSync(filePath, 'utf8');
+        return JSON.parse(data);
+    } catch (err) {
+        console.error('Error reading or parsing file:', err);
+        return null;
+    }
+}
 function bigintToTuple(x) {
   const mod = 2n ** 64n;
   const ret = [0n, 0n, 0n, 0n];
@@ -50,4 +60,4 @@ function bitArray2buffer(a) {
 
 
 
-module.exports = {bigintToTuple, bitArray2buffer, buffer2bitArray, bufferToBigInt}
+module.exports = {bigintToTuple, bitArray2buffer, buffer2bitArray, bufferToBigInt, read_json}

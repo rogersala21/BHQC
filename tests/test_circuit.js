@@ -1,32 +1,12 @@
 
 const chai = require("chai");
 const path = require("path");
-const crypto = require("crypto");
-const secp256k1 = require('secp256k1');
-const fs = require("fs");
-const { Point, CURVE } = require('@noble/secp256k1');
-const {bigintToTuple, bufferToBigInt, buffer2bitArray} = require("../src/utils");
-const { json } = require("stream/consumers");
-const { type } = require("os");
+const { Point } = require('@noble/secp256k1');
+const {bigintToTuple, bufferToBigInt, read_json} = require("../src/modules/utils");
 const circuitPath =  "../src/circuits/zkSNARK";
-const inputPath = "../outputs/participant/proofs";
-const assert = chai.assert;
+const inputPath = "test_inputs";
 const wasm_tester = require("circom_tester").wasm;
 
-async function read_json(filePath) {
-    try {
-        const data = await fs.readFileSync(filePath, 'utf8');
-        return JSON.parse(data);
-    } catch (err) {
-        console.error('Error reading or parsing file:', err);
-        return null;
-    }
-}
-async function number_to_tuple(value){
-    assert (typeof value == 'number');
-    console.log(value);
-    console.log(value.toString()); 
-}
 describe("Test", function () {
     this.timeout(100000);
     it("Check the circuit", async () => {
@@ -62,6 +42,6 @@ describe("Test", function () {
             "H": [H_x, H_y],
             "pub_key_point": [pk_x, pk_y]
         }
-        const witness = await cir.calculateWitness(circuit_inputs, true); 
+        await cir.calculateWitness(circuit_inputs, true); 
     }).timeout(1000000);
 });
