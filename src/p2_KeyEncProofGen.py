@@ -169,12 +169,6 @@ def challenge_computation(points):
     digest = hashlib.sha256(input).digest() 
     return int.from_bytes(digest, 'big')
 
-#def dummy_priv_key(): 
-#    priv_key_value = secrets.randbelow(2 ** (192 - over_flow_bits))
-#    priv_key = ec.derive_private_key(priv_key_value, ec.SECP256K1())
-#    assert(priv_key.private_numbers().private_value == priv_key_value)
-#    return priv_key
-
 def array_to_point(curve, array):
     points = [] 
     for id in range(len(array)): 
@@ -236,6 +230,15 @@ def iterate_proofs (H_256, H_192, btc_curve, weak_curve, private_key, number_of_
             raise ValueError("Too many iterations in proof generation")
     return K_192, K_256, s_192  , s_256, z, C_192_proof, C_256_proof, p_192_proof, p_256_proof, r_192_temp, r_256_temp, C_192_temp, C_256_temp, r_256
 
+def list_to_string(input):
+    converted = []
+    for element in input:
+        if type(element) == list :
+            # We have a list of points
+            converted.append([str(element[0]), str(element[1])])
+        elif type(element) == int :
+            converted.append(str(element))
+    return converted
 
 def proof_gen():
     # Parameters in the Bitcoin's curve 
@@ -292,11 +295,11 @@ def proof_gen():
         "alpha_c_192": alpha_c_192
     }
     json_SNARK_input = {
-        "random_values": random_chunks, 
-        "H": [H_256.x,H_256.y], 
-        "private_key": private_key.private_numbers().private_value, 
-        "commitments": C_256_proof, 
-        "private_key_range": weak_curve.field.n >> over_flow_bits
+        "random_values": list_to_string(random_chunks), 
+        "H": [str(H_256.x), str(H_256.y)], 
+        "private_key": str(private_key.private_numbers().private_value), 
+        "commitments": list_to_string(C_256_proof) , 
+        "private_key_range": str(weak_curve.field.n >> over_flow_bits)
     }
     if not os.path.exists(PROOF_DIR):
         os.makedirs(PROOF_DIR)

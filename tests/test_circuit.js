@@ -7,6 +7,7 @@ const fs = require("fs");
 const { Point, CURVE } = require('@noble/secp256k1');
 const {bigintToTuple, bufferToBigInt, buffer2bitArray} = require("../src/utils");
 const { json } = require("stream/consumers");
+const { type } = require("os");
 const circuitPath =  "../src/circuits/zkSNARK";
 const inputPath = "../outputs/participant/proofs";
 const assert = chai.assert;
@@ -21,15 +22,17 @@ async function read_json(filePath) {
         return null;
     }
 }
+async function number_to_tuple(value){
+    assert (typeof value == 'number');
+    console.log(value);
+    console.log(value.toString()); 
+}
 describe("Test", function () {
     this.timeout(100000);
     it("Check the circuit", async () => {
         const cir = await wasm_tester(path.join(__dirname, circuitPath, "main.circom"));
-        const CURVE_N = BigInt("115792089237316195423570985008687907852837564279074904382605163141518161494337");
         filePath= path.join(__dirname, inputPath + "/" + "input_SNARK_88308370623668056984220166548001497620511570460403953869190865758622127107717.json");
-        // data = fs.readFile(filePath, 'utf8');
         proof_input = await read_json(filePath);
-
         const private_key_input = bigintToTuple(BigInt(proof_input.private_key));
         public_key_point = Point.BASE.multiply(BigInt(proof_input.private_key));
         const G_x = bigintToTuple(bufferToBigInt(Point.BASE.toBytes(false).slice(1,33))); 
@@ -59,8 +62,6 @@ describe("Test", function () {
             "H": [H_x, H_y],
             "pub_key_point": [pk_x, pk_y]
         }
-        console.log(circuit_inputs);
-
         const witness = await cir.calculateWitness(circuit_inputs, true); 
     }).timeout(1000000);
 });
