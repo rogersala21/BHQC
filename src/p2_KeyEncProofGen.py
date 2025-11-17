@@ -12,7 +12,7 @@ from bitcoinutils.setup import setup
 
 SETUP_DIR = "../setup.json"
 
-def point_extraction(curve, seed):
+def point_extraction(curve, p, seed):
     while True:
         digest = hashlib.sha256(seed).digest()
         x = int.from_bytes(digest, 'big') % p
@@ -34,7 +34,7 @@ Gy = 326705100207588169780830851305070431844712733806592432759389043357573374824
 field = SubGroup(p, g =(Gx, Gy), n=n, h=1)
 btc_curve = Curve(a, b, field, name='secp256k1')
 size_btc = 32
-H_256 = point_extraction(btc_curve, btc_curve.g.x.to_bytes(size_btc, 'big') + btc_curve.g.y.to_bytes(size_btc, 'big'))
+H_256 = point_extraction(btc_curve, p, btc_curve.g.x.to_bytes(size_btc, 'big') + btc_curve.g.y.to_bytes(size_btc, 'big'))
 
 
 
@@ -48,7 +48,7 @@ n  = 0xffffffffffffffffffffffff99def836146bc9b1b4d22831
 field = SubGroup(p, g=(Gx, Gy), n=n, h=1)
 weak_curve = Curve(a, b, field, name='secp192r1')
 size_weak = 24
-H_192 = point_extraction(weak_curve, weak_curve.g.x.to_bytes(size_weak, 'big') + weak_curve.g.y.to_bytes(size_weak, 'big'))
+H_192 = point_extraction(weak_curve, p, weak_curve.g.x.to_bytes(size_weak, 'big') + weak_curve.g.y.to_bytes(size_weak, 'big'))
 
 # TODO Scheme setup parameters (put onto a setup file later)
 
@@ -308,84 +308,7 @@ def proof_gen():
     with open(os.path.join(PROOF_DIR, f"input_SNARK_{private_key.public_key().public_numbers().x }.json"), "w") as input_file:
         input_file.write(json.dumps(json_SNARK_input))
 
-def proof_verification(json_data):
-    R_256 = Point(btc_curve, json_data["R_256"][0], json_data["R_256"][1]) 
-    R_c_256 = Point(btc_curve, json_data["R_c_256"][0], json_data["R_c_256"][1])
-    R_192 = Point(weak_curve, json_data["R_192"][0], json_data["R_192"][1])
-    R_c_192 = Point(weak_curve, json_data["R_c_192"][0], json_data["R_c_192"][1]) 
-    s_192 = json_data["s_192"]
-    s_256 = json_data["s_256"]
-    C_256 = array_to_point(btc_curve, json_data["C_256"])
-    K_256 = array_to_point(btc_curve, json_data["K_256"])
-    p_256 = array_to_point(btc_curve, json_data["p_256"])
-    C_192 = array_to_point(weak_curve, json_data["C_192"])
-    K_192 = array_to_point(weak_curve, json_data["K_192"])
-    p_192 = array_to_point(weak_curve, json_data["p_192"])
-
-    z = json_data["z"]
-    alpha_p_256 = json_data["alpha_p_256"]
-    alpha_c_256 = json_data["alpha_c_256"]
-
-    alpha_p_192 = json_data["alpha_p_192"]
-    alpha_c_192 = json_data["alpha_c_192"]
-    p_256_proof = compact_object(p_256)
-    p_192_proof = compact_object(p_192)
-    C_256_proof = compact_object(C_256)
-    C_192_proof = compact_object(C_192)
-
-    # ===== Verification on NIST curve =====  
-    challenge = challenge_computation([R_192, R_c_192]) 
-    lhs = alpha_p_192 * weak_curve.g 
-    rhs = R_192 + challenge * p_192_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
-    rhs = alpha_p_192 * weak_curve.g + alpha_c_192 * H_192
-    lhs = R_c_192 + challenge * C_192_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
-
-    # ===== Verification on BTC curve =====   
-    challenge = challenge_computation([R_256, R_c_256])
-    lhs = alpha_p_256 * btc_curve.g 
-    rhs = R_256 + challenge * p_256_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
-    rhs = alpha_p_256 * btc_curve.g + alpha_c_256 * H_256
-    lhs = R_c_256 + challenge * C_256_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
-
-    # ====== Check the transitions on chunks ==========  
-    for id in range(number_of_chunks):
-        curve_challenge = challenge_computation([K_256[id], K_192[id]]) >> 132 
-        assert    2** (b_x + b_c) <= z[id] and z[id] < 2** (b_x+ b_c + b_f ) -1 , "z is out of range"
-
-        #  Check the signature validity
-        # ===== Verification on weak curve (per paper: s_v * G192 == R'_v + m * C'_v) =====
-        lhs_weak = weak_curve.g * z[id] + s_192[id] * H_192
-        rhs_weak = K_192[id] + curve_challenge * C_192[id]
-        assert lhs_weak.x == rhs_weak.x and lhs_weak.y == rhs_weak.y, "Weak-curve check failed for the transition between curves"
-
-
-        # ===== Verification on BTC curve transition to NIST  =====
-
-        lhs_btc = btc_curve.g * z[id] + s_256[id] * H_256
-        rhs_btc = K_256[id] + curve_challenge * C_256[id]
-        assert lhs_btc.x == rhs_btc.x and lhs_btc.y == rhs_btc.y, "BTC-curve check failed on the transition between curves"
-
-    print("Proof is verified.")
-
 if __name__ == "__main__":
-    # private_key = derive_private_key()
+    private_key = derive_private_key()
     proof_gen()
-    if not os.path.exists(PROOF_DIR):
-        raise FileNotFoundError(f"Proof directory does not exist: {PROOF_DIR}")
 
-    # Look for all proof files in the directory
-    files = [f for f in os.listdir(PROOF_DIR) if f.startswith("proof")]
-    if not files:
-        raise FileNotFoundError(f"No proof files found in {PROOF_DIR}")
-
-    for filename in files:
-        filepath = os.path.join(PROOF_DIR, filename)
-        with open(filepath, "r") as f:
-            json_data = json.load(f)
-
-        print(f"Verifying proof from: {filename}")
-        proof_verification(json_data) 

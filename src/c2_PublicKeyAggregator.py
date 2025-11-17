@@ -6,7 +6,7 @@ from tinyec.ec import Point
 from tinyec.ec import SubGroup, Curve
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
-
+import hashlib
 PROOF_DIR = "../outputs/participant/proofs"
 OUTPUTS_DIR = "../outputs/coordinator/key_agg_output"
 
@@ -29,6 +29,30 @@ Gy_192 = 0x07192b95ffc8da78631011ed6b24cdd573f977a11e794811
 n_192  = 0xffffffffffffffffffffffff99def836146bc9b1b4d22831
 field_192 = SubGroup(p_192, g=(Gx_192, Gy_192), n=n_192, h=1)
 weak_curve = Curve(a_192, b_192, field_192, name='secp192r1')
+number_of_entities = 64
+number_of_chunks = 3
+b_x = 64 
+b_f = 3
+b_c = 124
+b_g = 192
+size_weak = 24
+size_btc = 32
+
+def point_extraction(curve,p, seed):
+    while True:
+        digest = hashlib.sha256(seed).digest()
+        x = int.from_bytes(digest, 'big') % p
+
+        rhs = (x**3 + curve.a *x + curve.b ) % p
+        if pow(rhs, (p - 1) // 2, p) == 1:
+            y = pow(rhs, (p + 1) // 4, p)
+            return Point(curve, x, y)
+
+        seed = hashlib.sha256(seed).digest()
+
+H_256 = point_extraction(btc_curve, p_256, btc_curve.g.x.to_bytes(size_btc, 'big') + btc_curve.g.y.to_bytes(size_btc, 'big'))
+
+H_192 = point_extraction(weak_curve, p_192, weak_curve.g.x.to_bytes(size_weak, 'big') + weak_curve.g.y.to_bytes(size_weak, 'big'))
 
 def load_public_keys(proof_dir):
     btc_pubkeylist = []
@@ -63,7 +87,89 @@ def load_public_keys(proof_dir):
                         
                         secp192_pubkeylist.append((reconstructed_secp192_point.x, reconstructed_secp192_point.y))
 
-    return btc_pubkeylist, secp192_pubkeylist
+    return btc_pubkeylist, secp192_pubkeylist, data 
+
+def is_on_curve(point, curve):
+    x, y = point.x, point.y
+    lhs = y * y % curve.field.p
+    rhs = (x**3 + curve.a * x + curve.b) % curve.field.p
+    return lhs == rhs
+
+def challenge_computation(points): 
+    input = bytes()
+    for point in points: 
+        if is_on_curve(point, btc_curve):
+            input += point.x.to_bytes(size_btc, 'big') + point.y.to_bytes(size_btc, 'big')
+        elif is_on_curve(point, weak_curve):
+            input += point.x.to_bytes(size_weak, 'big') + point.y.to_bytes(size_weak, 'big')
+        else : 
+            raise('point is not on any of the curves')
+    digest = hashlib.sha256(input).digest() 
+    return int.from_bytes(digest, 'big')
+
+def proof_verification(json_data):
+    R_256 = Point(btc_curve, json_data["R_256"][0], json_data["R_256"][1]) 
+    R_c_256 = Point(btc_curve, json_data["R_c_256"][0], json_data["R_c_256"][1])
+    R_192 = Point(weak_curve, json_data["R_192"][0], json_data["R_192"][1])
+    R_c_192 = Point(weak_curve, json_data["R_c_192"][0], json_data["R_c_192"][1]) 
+    s_192 = json_data["s_192"]
+    s_256 = json_data["s_256"]
+    C_256 = array_to_point(btc_curve, json_data["C_256"])
+    K_256 = array_to_point(btc_curve, json_data["K_256"])
+    p_256 = array_to_point(btc_curve, json_data["p_256"])
+    C_192 = array_to_point(weak_curve, json_data["C_192"])
+    K_192 = array_to_point(weak_curve, json_data["K_192"])
+    p_192 = array_to_point(weak_curve, json_data["p_192"])
+
+    z = json_data["z"]
+    alpha_p_256 = json_data["alpha_p_256"]
+    alpha_c_256 = json_data["alpha_c_256"]
+
+    alpha_p_192 = json_data["alpha_p_192"]
+    alpha_c_192 = json_data["alpha_c_192"]
+    p_256_proof = compact_object(p_256)
+    p_192_proof = compact_object(p_192)
+    C_256_proof = compact_object(C_256)
+    C_192_proof = compact_object(C_192)
+
+    # ===== Verification on NIST curve =====  
+    challenge = challenge_computation([R_192, R_c_192]) 
+    lhs = alpha_p_192 * weak_curve.g 
+    rhs = R_192 + challenge * p_192_proof
+    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
+    rhs = alpha_p_192 * weak_curve.g + alpha_c_192 * H_192
+    lhs = R_c_192 + challenge * C_192_proof
+    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
+
+    # ===== Verification on BTC curve =====   
+    challenge = challenge_computation([R_256, R_c_256])
+    lhs = alpha_p_256 * btc_curve.g 
+    rhs = R_256 + challenge * p_256_proof
+    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
+    rhs = alpha_p_256 * btc_curve.g + alpha_c_256 * H_256
+    lhs = R_c_256 + challenge * C_256_proof
+    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
+
+    # ====== Check the transitions on chunks ==========  
+    for id in range(number_of_chunks):
+        curve_challenge = challenge_computation([K_256[id], K_192[id]]) >> 132 
+        assert    2** (b_x + b_c) <= z[id] and z[id] < 2** (b_x+ b_c + b_f ) -1 , "z is out of range"
+
+        #  Check the signature validity
+        # ===== Verification on weak curve (per paper: s_v * G192 == R'_v + m * C'_v) =====
+        lhs_weak = weak_curve.g * z[id] + s_192[id] * H_192
+        rhs_weak = K_192[id] + curve_challenge * C_192[id]
+        assert lhs_weak.x == rhs_weak.x and lhs_weak.y == rhs_weak.y, "Weak-curve check failed for the transition between curves"
+
+
+        # ===== Verification on BTC curve transition to NIST  =====
+
+        lhs_btc = btc_curve.g * z[id] + s_256[id] * H_256
+        rhs_btc = K_256[id] + curve_challenge * C_256[id]
+        assert lhs_btc.x == rhs_btc.x and lhs_btc.y == rhs_btc.y, "BTC-curve check failed on the transition between curves"
+
+    print("Proof is verified.")
+
 
 def array_to_point(curve, array):
     points = [] 
@@ -145,8 +251,10 @@ def is_generator_point_secp192r1(point):
 
 
 def main():
-    pubkeybtc, pubkeyweak = load_public_keys(PROOF_DIR)
-
+    pubkeybtc, pubkeyweak, proof_data = load_public_keys(PROOF_DIR)
+    # Before aggregating any key, the proofs must be verified 
+    proof_verification(proof_data) 
+    # Will only aggregate values of the proofs are valid 
     agg_btc_point = aggregate_btc_pubkeys(pubkeybtc)
     print("Aggregated btc public key:", agg_btc_point.format().hex())
 
