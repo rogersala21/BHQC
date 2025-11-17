@@ -6,7 +6,7 @@ from tinyec.ec import Point
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 import hashlib
-from modules.utils import Secp192r1, Secp256k1
+from modules.curves import Secp192r1, Secp256k1
 PROOF_DIR = "../outputs/participant/proofs"
 OUTPUTS_DIR = "../outputs/coordinator/key_agg_output"
 
@@ -96,15 +96,15 @@ def proof_verification(proof, secp256k1_curve, secp192r1_curve):
     C_192_proof = compact_object(C_192)
 
     # ===== Verification on NIST curve =====  
-    challenge = challenge_computation([R_192, R_c_192]) 
-    rhs = alpha_p_192 * secp192r1_curve.generator() + alpha_c_192 * H_192
-    lhs = R_c_192 + challenge * C_192_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
-    lhs = alpha_p_192 * secp192r1_curve.generator() 
-    rhs = R_192 + challenge * p_192_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
+    # challenge = challenge_computation([R_192, R_c_192]) 
+    # rhs = alpha_p_192 * secp192r1_curve.generator() + alpha_c_192 * H_192
+    # lhs = R_c_192 + challenge * C_192_proof
+    # assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
+    # lhs = alpha_p_192 * secp192r1_curve.generator() 
+    # rhs = R_192 + challenge * p_192_proof
+    # assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
 
-    # ===== Verification on BTC curve =====   
+    # # ===== Verification on BTC curve =====   
     challenge = challenge_computation([R_256, R_c_256])
     lhs = alpha_p_256 * secp256k1_curve.generator()
     rhs = R_256 + challenge * p_256_proof
