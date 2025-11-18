@@ -49,7 +49,7 @@ def seed_bits_calc():
 over_flow_bits = seed_bits_calc()
 
 
-def compact_object(chunks):
+def aggregate_chunks(chunks):
     for id in range(number_of_chunks):
         if id == 0 :
             result = chunks[id]
@@ -96,31 +96,24 @@ def load_private_key(keys_dir):
 if __name__ == "__main__":
     private_key = derive_private_key()
     private_key_range = Secp192r1.field.n >> over_flow_bits
-    dleqag_proof_inst =  DLEQAG(b_x, b_f, b_c, number_of_chunks, Secp192r1.field.n >> over_flow_bits, private_key.private_numbers().private_value, Secp256k1, Secp192r1)
-    dleqag_proof, SNARK_input = dleqag_proof_inst.proof_gen()
-    print(dleqag_proof["r_HS"], dleqag_proof["r_LS"])
-    dleq_proof_secp256k1_inst = DLEQ(dleqag_proof["r_HS"], Secp256k1, private_key.private_numbers().private_value)
-    dleq_proof_secp256k1 = dleq_proof_secp256k1_inst.proof_gen()
-    dleq_proof_secp192r1_inst = DLEQ(dleqag_proof["r_LS"], Secp192r1, private_key.private_numbers().private_value)
-    dleq_proof_secp192r1 = dleq_proof_secp192r1_inst.proof_gen()
+    dleqag_inst = DLEQAG(b_x, b_f, b_c, number_of_chunks, private_key_range, Secp256k1, Secp192r1)
+    dleqag_proof, SNARK_input = dleqag_inst.proof_gen(private_key.private_numbers().private_value)
+    dleq_secp256k1_inst = DLEQ(Secp256k1)
+    dleq_proof_secp256k1 = dleq_secp256k1_inst.proof_gen(dleqag_proof["r_HS"], private_key.private_numbers().private_value)
+    dleq_secp192r1_inst = DLEQ(Secp192r1)
+    dleq_proof_secp192r1 = dleq_secp192r1_inst.proof_gen(dleqag_proof["r_LS"],  private_key.private_numbers().private_value)
     json_data = {
         "p_256": dleqag_proof["p_HS"],
-        "R_256": dleq_proof_secp256k1["R"],
-        "R_c_256": dleq_proof_secp256k1["R_c"],
         "K_256": dleqag_proof["K_HS"],
         "C_256": dleqag_proof["C_HS"],
-        "z": dleqag_proof["z"], 
         "s_256": dleqag_proof["s_HS"], 
-        "alpha_p_256": dleq_proof_secp256k1["alpha"],
-        "alpha_c_256": dleq_proof_secp256k1["alpha_c"], 
         "p_192": dleqag_proof["p_LS"],
         "K_192": dleqag_proof["K_LS"],
         "C_192": dleqag_proof["C_LS"],
-        "R_192": dleq_proof_secp192r1["R"],
-        "R_c_192": dleq_proof_secp192r1["R_c"],
         "s_192": dleqag_proof["s_LS"],
-        "alpha_p_192": dleq_proof_secp192r1["alpha"], 
-        "alpha_c_192": dleq_proof_secp192r1["alpha_c"]
+        "z": dleqag_proof["z"], 
+        "dleq_192": dleq_proof_secp192r1, 
+        "dleq_256": dleq_proof_secp256k1
     }
     if not os.path.exists(PROOF_DIR):
         os.makedirs(PROOF_DIR)

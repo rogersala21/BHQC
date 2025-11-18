@@ -15,7 +15,7 @@ class Secp256k1:
     byte_size = 32
     field = SubGroup(p, g =(Gx, Gy), n=n, h=1)
     curve = Curve(a, b, field, name='secp256k1')
-    
+    name = "secp256k1"
     @classmethod
     def generator(cls):
         return Point(cls.curve, cls.Gx, cls.Gy)
@@ -59,6 +59,7 @@ class Secp192r1:
     Gx = 0x188da80eb03090f67cbf20eb43a18800f4ff0afd82ff1012
     Gy = 0x07192b95ffc8da78631011ed6b24cdd573f977a11e794811
     n  = 0xffffffffffffffffffffffff99def836146bc9b1b4d22831
+    name = "secp192r1"
     byte_size = 24
     field = SubGroup(p, g=(Gx, Gy), n=n, h=1)
     curve = Curve(a, b, field, name='secp192r1')
