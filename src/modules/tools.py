@@ -1,0 +1,98 @@
+import c2_PublicKeyAggregator as pub_agg
+import c4_HoneypotCommitment as honeypot_commitment
+import sys
+import glob
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding as sym_padding
+from coincurve import PrivateKey
+from bitcoinutils.keys import PrivateKey as BitcoinPrivateKey
+from bitcoinutils.setup import setup
+from bitcoinutils.utils import tweak_taproot_privkey
+from modules.descriptor import descsum_create
+
+def check_private_key(secp192r1_privatekey_raw, secp192r1_pub):
+    secp192r1_processed = serialization.load_pem_private_key(
+        secp192r1_privatekey_raw.encode(),
+        password=None,
+    )
+
+    receiver_public_key = secp192r1_processed.public_key()
+    public_key_bytes = receiver_public_key.public_bytes(
+        encoding=serialization.Encoding.X962,
+        format=serialization.PublicFormat.CompressedPoint
+    )
+
+    check = (public_key_bytes.hex() == secp192r1_pub)
+    if check:
+        print("The secp192r1 private key corresponds to the public key.\n")
+        return secp192r1_processed
+    else:
+        print("The secp192r1 private key does not correspond to the public key.")
+        print(f"Private key public key: {public_key_bytes.hex()}")
+        print(f"Expected public key: {secp192r1_pub}")
+        print("Please check your private key and try again...")
+        sys.exit(0)
+
+
+
+def wif_aggregation(list_decrypted_privates):
+
+    # Convert WIF to coincurve.PrivateKey
+    coincurve_privs = []
+    for wif in list_decrypted_privates:
+        btc_priv = BitcoinPrivateKey(wif)
+        priv_bytes = btc_priv.to_bytes()
+        cc_priv = PrivateKey(priv_bytes)
+        coincurve_privs.append(cc_priv)
+
+
+    # Aggregate the private keys
+    n = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+    x_sum = sum(int.from_bytes(priv.secret, 'big') for priv in coincurve_privs) % n
+    agg_secret = PrivateKey(x_sum.to_bytes(32, 'big'))
+
+    # Convert the aggregated private key to Bitcoin WIF format
+    agg_secret_bytes = agg_secret.secret  # 32 bytes
+    btc_priv = BitcoinPrivateKey.from_bytes(agg_secret_bytes)
+    wif = btc_priv.to_wif()
+
+    return wif
+
+def tweak_wif_key(wif_before_tweak, tweak_int):
+    priv = BitcoinPrivateKey(wif_before_tweak)
+    priv_key_bytes = priv.to_bytes()
+    tweaked_privkey_bytes = tweak_taproot_privkey(priv_key_bytes, tweak_int)
+    tweaked_privkey = BitcoinPrivateKey.from_bytes(tweaked_privkey_bytes)
+
+    return tweaked_privkey.to_wif()
+
+
+
+
+def create_wallet_descriptor(honeypot_wif):
+    descriptor = f"tr({honeypot_wif})"
+    descriptor_with_checksum = descsum_create(descriptor)
+    print("Creating wallet descriptor ready to import into Bitcoin Core... \n")
+    lines = [
+        'createwallet "BHQC"',
+        '',
+        'importdescriptors \'[{',
+        f'  "desc": "{descriptor_with_checksum}",',
+        '  "timestamp": 0,',
+        '  "label": "Honeypot"',
+        '}]\''
+    ]
+
+    with open('../outputs/attacker/bitcoin_core_import.txt', 'w') as f:
+        for line in lines:
+            f.write(line + '\n')
+
+    print("Wallet descriptor created and saved in ../outputs/attacker/bitcoin_core_import.txt")
+
+    print("Content of the file:")
+    with open('../outputs/attacker/bitcoin_core_import.txt', 'r') as f:
+        content = f.read()
+        print(content)
