@@ -96,9 +96,9 @@ def load_private_key(keys_dir):
 if __name__ == "__main__":
     private_key = derive_private_key()
     private_key_range = Secp192r1.field.n >> over_flow_bits
-    print(math.log2(Secp192r1.field.n))
     dleqag_proof_inst =  DLEQAG(b_x, b_f, b_c, number_of_chunks, Secp192r1.field.n >> over_flow_bits, private_key.private_numbers().private_value, Secp256k1, Secp192r1)
     dleqag_proof, SNARK_input = dleqag_proof_inst.proof_gen()
+    print(dleqag_proof["r_HS"], dleqag_proof["r_LS"])
     dleq_proof_secp256k1_inst = DLEQ(dleqag_proof["r_HS"], Secp256k1, private_key.private_numbers().private_value)
     dleq_proof_secp256k1 = dleq_proof_secp256k1_inst.proof_gen()
     dleq_proof_secp192r1_inst = DLEQ(dleqag_proof["r_LS"], Secp192r1, private_key.private_numbers().private_value)

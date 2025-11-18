@@ -13,7 +13,7 @@ class DLEQAG:
         self.number_of_chunks = number_of_chunks
         self.secret_range = secret_range
         self.secret = secret
-        self.MAX_ITER = 1000
+        self.MAX_ITER = 100
         #  Curve with the higher security (HSC)
         self.HSCurve = HSCurve
         #  Curve with the lower security (LSC)
