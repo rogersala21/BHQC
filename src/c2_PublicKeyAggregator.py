@@ -6,7 +6,9 @@ from tinyec.ec import Point
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 import hashlib
-from modules.utils import Secp192r1, Secp256k1
+from modules.dleqag import DLEQAG
+from modules.dleq import DLEQ
+from modules.curves import Secp192r1, Secp256k1
 PROOF_DIR = "../outputs/participant/proofs"
 OUTPUTS_DIR = "../outputs/coordinator/key_agg_output"
 
@@ -67,72 +69,26 @@ def challenge_computation(points):
     digest = hashlib.sha256(input).digest() 
     return int.from_bytes(digest, 'big')
 
-def proof_verification(proof, secp256k1_curve, secp192r1_curve):
-    H_256 = secp256k1_curve.map_to_point(secp256k1_curve.Gx.to_bytes(Secp256k1.byte_size, 'big') + secp256k1_curve.Gy.to_bytes(Secp256k1.byte_size, 'big'))
-    H_192 = secp192r1_curve.map_to_point(secp192r1_curve.Gx.to_bytes(Secp192r1.byte_size, 'big') + secp192r1_curve.Gy.to_bytes(Secp192r1.byte_size, 'big'))
-  
-    R_256 = secp256k1_curve.get_point(proof["R_256"][0], proof["R_256"][1]) 
-    R_c_256 = secp256k1_curve.get_point(proof["R_c_256"][0], proof["R_c_256"][1])
-    R_192 = secp192r1_curve.get_point(proof["R_192"][0], proof["R_192"][1])
-    R_c_192 = secp192r1_curve.get_point(proof["R_c_192"][0], proof["R_c_192"][1]) 
-    s_192 = proof["s_192"]
-    s_256 = proof["s_256"]
-    C_256 = secp256k1_curve.array_to_point(proof["C_256"])
-    K_256 = secp256k1_curve.array_to_point(proof["K_256"])
-    p_256 = secp256k1_curve.array_to_point(proof["p_256"])
-    C_192 = secp192r1_curve.array_to_point(proof["C_192"])
-    K_192 = secp192r1_curve.array_to_point(proof["K_192"])
-    p_192 = secp192r1_curve.array_to_point(proof["p_192"])
+def proof_verification(proof):
 
-    z = proof["z"]
-    alpha_p_256 = proof["alpha_p_256"]
-    alpha_c_256 = proof["alpha_c_256"]
+#   Verification of the proofs for discrete logarithm equality across groups
+    dleqag_inst = DLEQAG(b_x, b_f, b_c, number_of_chunks, Secp192r1.field.n >> 6, Secp256k1, Secp192r1)
+    dleqag_inst.proof_verification(proof)
 
-    alpha_p_192 = proof["alpha_p_192"]
-    alpha_c_192 = proof["alpha_c_192"]
+    C_256 = Secp256k1.array_to_point(proof["C_256"])
+    p_256 = Secp256k1.array_to_point(proof["p_256"])
+    C_192 = Secp192r1.array_to_point(proof["C_192"])
+    p_192 = Secp192r1.array_to_point(proof["p_192"])
     p_256_proof = compact_object(p_256)
     p_192_proof = compact_object(p_192)
     C_256_proof = compact_object(C_256)
     C_192_proof = compact_object(C_192)
-
-    # ===== Verification on NIST curve =====  
-    challenge = challenge_computation([R_192, R_c_192]) 
-    rhs = alpha_p_192 * secp192r1_curve.generator() + alpha_c_192 * H_192
-    lhs = R_c_192 + challenge * C_192_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
-    lhs = alpha_p_192 * secp192r1_curve.generator() 
-    rhs = R_192 + challenge * p_192_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
-
-    # ===== Verification on BTC curve =====   
-    challenge = challenge_computation([R_256, R_c_256])
-    lhs = alpha_p_256 * secp256k1_curve.generator()
-    rhs = R_256 + challenge * p_256_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
-    rhs = alpha_p_256 * secp256k1_curve.generator() + alpha_c_256 * H_256
-    lhs = R_c_256 + challenge * C_256_proof
-    assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
-
-    # ====== Check the transitions on chunks ==========  
-    for id in range(number_of_chunks):
-        curve_challenge = challenge_computation([K_256[id], K_192[id]]) >> 132 
-        assert    2** (b_x + b_c) <= z[id] and z[id] < 2** (b_x+ b_c + b_f ) -1 , "z is out of range"
-
-        #  Check the signature validity
-        # ===== Verification on weak curve (per paper: s_v * G192 == R'_v + m * C'_v) =====
-        lhs_weak = secp192r1_curve.generator()  * z[id] + s_192[id] * H_192
-        rhs_weak = K_192[id] + curve_challenge * C_192[id]
-        assert lhs_weak.x == rhs_weak.x and lhs_weak.y == rhs_weak.y, "Weak-curve check failed for the transition between curves"
-
-
-        # ===== Verification on BTC curve transition to NIST  =====
-
-        lhs_btc = secp256k1_curve.generator() * z[id] + s_256[id] * H_256
-        rhs_btc = K_256[id] + curve_challenge * C_256[id]
-        assert lhs_btc.x == rhs_btc.x and lhs_btc.y == rhs_btc.y, "BTC-curve check failed on the transition between curves"
-
-    print("Proof is verified.")
-
+#   Verification of the proofs for discrete logarithm equality of public key and commitments on SECP256K1
+    dleq_inst_secp256k1 = DLEQ(Secp256k1)
+    dleq_inst_secp256k1.proof_verification(proof["dleq_256"], C_256_proof, p_256_proof)
+#   Verification of the proofs for discrete logarithm equality of public key and commitments on SECP192r1
+    dleq_inst_secp192r1 = DLEQ(Secp192r1)
+    dleq_inst_secp192r1.proof_verification(proof["dleq_192"], C_192_proof, p_192_proof)
 
 
 def compact_object(chunks):
@@ -208,7 +164,7 @@ def is_generator_point_secp192r1(point):
 def main():
     pubkeybtc, pubkeyweak, proof_data = load_public_keys(PROOF_DIR)
     # Before aggregating any key, the proofs must be verified 
-    proof_verification(proof_data, Secp256k1, Secp192r1)
+    proof_verification(proof_data)
     # Will only aggregate values of the proofs are valid 
     agg_btc_point = aggregate_btc_pubkeys(pubkeybtc)
     print("Aggregated btc public key:", agg_btc_point.format().hex())
