@@ -125,7 +125,7 @@ class DLEQAG:
         K_256 = self.HSCurve.array_to_point(proof["K_256"])
             # ====== Check the transitions on chunks ==========  
         for id in range(self.number_of_chunks):
-            curve_challenge = self.challenge_computation([K_256[id], K_192[id]]) >> 132 
+            curve_challenge = self.challenge_computation([K_256[id], K_192[id]]) >> (256 - self.b_c) 
             assert    2** (self.b_x + self.b_c) <= z[id] and z[id] < 2** (self.b_x+ self.b_c + self.b_f ) -1 , "z is out of range"
 
             #  Check the signature validity
