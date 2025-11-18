@@ -1,18 +1,14 @@
 import os
-import hashlib
 import re
-import secrets
 import json
 import math
 from cryptography.hazmat.primitives.asymmetric import ec
-from tinyec.ec import Point
-from tinyec.ec import SubGroup, Curve
 from bitcoinutils.keys import PrivateKey
 from bitcoinutils.setup import setup
 from modules.curves import Secp192r1, Secp256k1
 from modules.dleqag import DLEQAG
 from modules.dleq import DLEQ
-
+from modules.tools import to_snark_input
 SETUP_DIR = "../setup.json"
 AGGKEY_DIR = "../outputs/participant"
 KEYS_DIR = "../outputs/participant/keys"
@@ -116,6 +112,7 @@ if __name__ == "__main__":
         "dleq_192": dleq_proof_secp192r1, 
         "dleq_256": dleq_proof_secp256k1
     }
+    to_snark_input(SNARK_input, number_of_chunks)
     if not os.path.exists(PROOF_DIR):
         os.makedirs(PROOF_DIR)
     with open(os.path.join(PROOF_DIR, f"proof_{private_key.public_key().public_numbers().x }.json"), "w") as proof_file:

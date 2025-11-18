@@ -4,6 +4,7 @@ from coincurve import PrivateKey
 from bitcoinutils.keys import PrivateKey as BitcoinPrivateKey
 from bitcoinutils.utils import tweak_taproot_privkey
 from modules.descriptor import descsum_create
+from modules.curves import Secp256k1
 
 def check_private_key(secp192r1_privatekey_raw, secp192r1_pub):
     secp192r1_processed = serialization.load_pem_private_key(
@@ -88,3 +89,35 @@ def create_wallet_descriptor(honeypot_wif):
     with open('../outputs/attacker/bitcoin_core_import.txt', 'r') as f:
         content = f.read()
         print(content)
+
+def bigint_to_tuple (value: str | int ):
+    if type(value) == str: 
+        value = int(value)
+    mod = 2 ** 64 
+    result = []
+    assert value <= 2 ** 256, "value does not fit in 256 bits"
+    temp_value = value 
+    for index in range(4):
+        result.append(temp_value % mod)
+        temp_value = temp_value // mod 
+    
+    return result
+
+def to_snark_input(proof, number_of_chunks):
+    commitments, random_values = [], []
+    private_key_input = bigint_to_tuple(proof["private_key"])
+    private_key_range = bigint_to_tuple(proof["private_key_range"])
+    H = [bigint_to_tuple(proof["H"][0]), bigint_to_tuple(proof["H"][1])]
+    G = [bigint_to_tuple(Secp256k1.Gx), bigint_to_tuple(Secp256k1.Gy)]
+    pub_key_point = [bigint_to_tuple(proof["pub_key_point"][0]), bigint_to_tuple(proof["pub_key_point"][1])]
+    for index in range(number_of_chunks):
+        random_values.append(bigint_to_tuple(proof["random_values"][index]))
+        commitments.append([bigint_to_tuple(proof["commitments"][index][0]), bigint_to_tuple(proof["commitments"][index][1])])
+    circuit_input = {
+        "private_key_chunks": private_key_input, 
+        "G": G, 
+        "private_key_range": private_key_range, 
+        "commitments": commitments, 
+        "pub_key_point": pub_key_point
+    }
+    return circuit_input

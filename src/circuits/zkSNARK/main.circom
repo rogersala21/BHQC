@@ -12,10 +12,7 @@ include "../../modules/circomlib/circuits/sha256/sha256.circom";
 
 template RangeProof(n, k) {
     signal input private_key_chunks[k]; 
-    signal input random_values[3][k];
     signal input G[2][k]; 
-    signal input H[2][k];
-    signal input commitments[3][2][k];
     signal input private_key_range[k]; 
     signal input pub_key_point[2][k];
 //    ------------------------------------------------------------------------------     //
@@ -23,9 +20,7 @@ template RangeProof(n, k) {
     component isPubKeyEqual[2 * k ];
     component isCommitEqual[2 * k * 3];
     component addPoints[3];
-    signal computed_random_points[3][2][k];
     signal computed_pubkey_chunks[3][2][k];
-    signal computed_commitments[3][2][k];
     signal computed_public_key[2][k];
 ////    ------------------------------------------------------------------------------    //
 ///////////////// Checking the range for the inputted private key 
@@ -51,35 +46,7 @@ template RangeProof(n, k) {
         assert(isPubKeyEqual[arr_index].out);
         assert(isPubKeyEqual[arr_index + k].out);
     }
-
-////    ------------------------------------------------------------------------------
-/////////////// Checking the commitments 
-    for (var chunk_index = 0; chunk_index < 3; chunk_index++){
-        multiplier[1 + chunk_index] = Secp256k1ScalarMult(n,k);
-        multiplier[1 + chunk_index].scalar <== [private_key_chunks[chunk_index], 0, 0, 0]; 
-        multiplier[1 + chunk_index].point <== G;
-        computed_pubkey_chunks[chunk_index] <== multiplier[1 + chunk_index].out;
-        multiplier[4 + chunk_index] = Secp256k1ScalarMult(n,k);
-        multiplier[4 + chunk_index].scalar <== random_values[chunk_index];
-        multiplier[4 + chunk_index].point <== H;
-        computed_random_points[chunk_index] <== multiplier[4 + chunk_index].out;
-        addPoints[chunk_index] = Secp256k1AddUnequal(n, k);
-        addPoints[chunk_index].a <== computed_random_points[chunk_index];
-        addPoints[chunk_index].b <== computed_pubkey_chunks[chunk_index];
-        computed_commitments[chunk_index] <== addPoints[chunk_index].out;
-        
-        for(var arr_index = 0; arr_index < k; arr_index++){
-            isCommitEqual[arr_index + 2*k * chunk_index] = IsEqual();
-            isCommitEqual[arr_index + 2*k * chunk_index].in[0] <==  computed_commitments[chunk_index][0][arr_index];
-            isCommitEqual[arr_index + 2*k * chunk_index].in[1] <== commitments[chunk_index][0][arr_index];
-            isCommitEqual[arr_index + 2*k * chunk_index + k] = IsEqual();
-            isCommitEqual[arr_index + 2*k * chunk_index + k].in[0] <== computed_commitments[chunk_index][1][arr_index];
-            isCommitEqual[arr_index + 2*k * chunk_index + k].in[1] <== commitments[chunk_index][1][arr_index];
-            assert(isCommitEqual[arr_index + 2*k * chunk_index].out);
-            assert(isCommitEqual[arr_index + k + 2*k * chunk_index].out);
-        }
-    }
 }
-component main {public[H, G, commitments, pub_key_point, private_key_range]} = RangeProof(64, 4);
+component main {public[G, pub_key_point, private_key_range]} = RangeProof(64, 4);
 
 

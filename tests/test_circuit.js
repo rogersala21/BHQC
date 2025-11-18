@@ -37,9 +37,6 @@ describe("Test", function () {
             "private_key_chunks": private_key_input, 
             "G": [G_x, G_y], 
             "private_key_range": private_key_range_input, 
-            "random_values": random_values, 
-            "commitments": commitments, 
-            "H": [H_x, H_y],
             "pub_key_point": [pk_x, pk_y]
         }
         await cir.calculateWitness(circuit_inputs, true); 

@@ -105,10 +105,8 @@ class DLEQAG:
         }
         # zkSNARK proof parameters 
         snark_input = {
-            "random_values": points_to_str(r_HS), 
-            "H": [str(HSCurve_H.x), str(HSCurve_H.y)], 
+            "pub_key_point": points_to_str([P_HS.x, P_HS.y]),
             "private_key": str(secret), 
-            "commitments": points_to_str(C_HS_proof) , 
             "private_key_range": str(self.secret_range)
         }
         return proof, snark_input
