@@ -103,6 +103,8 @@ if __name__ == "__main__":
     dleq_secp192r1_inst = DLEQ(Secp192r1)
     dleq_proof_secp192r1 = dleq_secp192r1_inst.proof_gen(dleqag_proof["r_LS"],  private_key.private_numbers().private_value)
     json_data = {
+        "pub_key_256": dleqag_proof["pub_key_HS"],
+        "pub_key_192": dleqag_proof["pub_key_LS"],
         "p_256": dleqag_proof["p_HS"],
         "K_256": dleqag_proof["K_HS"],
         "C_256": dleqag_proof["C_HS"],

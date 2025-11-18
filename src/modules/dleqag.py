@@ -89,8 +89,8 @@ class DLEQAG:
 
         # Proof parameters 
         proof = {
-            "pub_key_HS": P_HS,
-            "pub_key_LS": P_LS,
+            "pub_key_HS": [P_HS.x, P_HS.y],
+            "pub_key_LS": [P_LS.x, P_LS.y],
             "p_HS": p_HS_proof,
             "r_HS": r_HS_summed,
             "p_LS": p_LS_proof,
