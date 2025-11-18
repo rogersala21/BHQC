@@ -15,7 +15,6 @@ from modules.dleq import DLEQ
 
 SETUP_DIR = "../setup.json"
 AGGKEY_DIR = "../outputs/participant"
-OUTPUTS_DIR = "../outputs/participant/ecies_output"
 KEYS_DIR = "../outputs/participant/keys"
 PROOF_DIR = "../outputs/participant/proofs"
 
