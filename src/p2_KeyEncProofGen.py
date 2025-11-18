@@ -20,12 +20,7 @@ KEYS_DIR = "../outputs/participant/keys"
 PROOF_DIR = "../outputs/participant/proofs"
 
 
-number_of_entities = 64
-number_of_chunks = 3
-b_x = 64 
-b_f = 3
-b_c = 124
-b_g = 192
+
 # To do : handle the case of non-power of 2
 def load_setup():
     # Load setup data from JSON file
@@ -94,6 +89,11 @@ def load_private_key(keys_dir):
 
 
 if __name__ == "__main__":
+    number_of_entities = 64
+    number_of_chunks = 3
+    b_x = 64 
+    b_f = 3
+    b_c = 124
     private_key = derive_private_key()
     private_key_range = Secp192r1.field.n >> over_flow_bits
     dleqag_inst = DLEQAG(b_x, b_f, b_c, number_of_chunks, private_key_range, Secp256k1, Secp192r1)
