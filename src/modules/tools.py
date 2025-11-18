@@ -1,15 +1,7 @@
-import c2_PublicKeyAggregator as pub_agg
-import c4_HoneypotCommitment as honeypot_commitment
 import sys
-import glob
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding as sym_padding
+from cryptography.hazmat.primitives import serialization
 from coincurve import PrivateKey
 from bitcoinutils.keys import PrivateKey as BitcoinPrivateKey
-from bitcoinutils.setup import setup
 from bitcoinutils.utils import tweak_taproot_privkey
 from modules.descriptor import descsum_create
 
