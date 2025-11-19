@@ -14,7 +14,6 @@ from modules.tools import to_snark_input
 
 KEYS_DIR = "../outputs/participant/keys"
 SETUP_DIR = "../setup.json"
-AGGKEY_DIR = "../outputs/participant"
 PROOF_DIR = "../outputs/participant/proofs"
 
 def load_setup():
@@ -185,6 +184,8 @@ def main_proofs():
         proof_file.write(json.dumps(json_data))
     with open(os.path.join(PROOF_DIR, f"input_SNARK_{private_key.public_key().public_numbers().x }.json"), "w") as input_file:
         input_file.write(json.dumps(SNARK_input))
+    
+    print("Proofs generated and saved successfully into ", PROOF_DIR)
 
 if __name__ == "__main__":
     main()
