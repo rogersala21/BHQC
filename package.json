@@ -26,5 +26,8 @@
     "circom_tester": "^0.0.24",
     "ffjavascript": "^0.3.1",
     "secp256k1": "^5.0.1"
+  },
+  "dependencies": {
+    "bulletproof-js": "^1.0.7"
   }
 }

@@ -2,12 +2,8 @@ pragma circom 2.0.2;
 
 
 include "secp256k1.circom"; 
-include "utils.circom";
 include "bigint.circom";
-include "../../modules/circomlib/circuits/bitify.circom";
 include "../../modules/circomlib/circuits/comparators.circom";
-include "../../modules/circomlib/circuits/sha256/sha256.circom";
-
 
 
 template RangeProof(n, k) {
@@ -16,11 +12,8 @@ template RangeProof(n, k) {
     signal input private_key_range[k]; 
     signal input pub_key_point[2][k];
 //    ------------------------------------------------------------------------------     //
-    component multiplier[2 * 3 + 1];
+    component multiplier;
     component isPubKeyEqual[2 * k ];
-    component isCommitEqual[2 * k * 3];
-    component addPoints[3];
-    signal computed_pubkey_chunks[3][2][k];
     signal computed_public_key[2][k];
 ////    ------------------------------------------------------------------------------    //
 ///////////////// Checking the range for the inputted private key 
@@ -31,10 +24,10 @@ template RangeProof(n, k) {
     assert(less_than.out);
 //    ------------------------------------------------------------------------------    //
 /////////////// Checking the internal computed public key with the public key 
-    multiplier[0] = Secp256k1ScalarMult(n,k);
-    multiplier[0].scalar <== private_key_chunks;
-    multiplier[0].point <== G;
-    computed_public_key <== multiplier[0].out;
+    multiplier = Secp256k1ScalarMult(n,k);
+    multiplier.scalar <== private_key_chunks;
+    multiplier.point <== G;
+    computed_public_key <== multiplier.out;
 
     for(var arr_index = 0; arr_index < k; arr_index++){
         isPubKeyEqual[arr_index] = IsEqual();

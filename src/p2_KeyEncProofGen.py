@@ -112,7 +112,7 @@ if __name__ == "__main__":
         "dleq_192": dleq_proof_secp192r1, 
         "dleq_256": dleq_proof_secp256k1
     }
-    to_snark_input(SNARK_input, number_of_chunks)
+    SNARK_input = to_snark_input(SNARK_input)
     if not os.path.exists(PROOF_DIR):
         os.makedirs(PROOF_DIR)
     with open(os.path.join(PROOF_DIR, f"proof_{private_key.public_key().public_numbers().x }.json"), "w") as proof_file:
