@@ -1,11 +1,12 @@
 import json
 import os
 from coincurve import PublicKey
+import subprocess
 from tinyec import registry
 from tinyec.ec import Point
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
-import hashlib
+import math 
 from modules.dleqag import DLEQAG
 from modules.dleq import DLEQ
 from modules.curves import Secp192r1, Secp256k1
@@ -57,18 +58,6 @@ def load_public_keys(proof_dir):
     return btc_pubkeylist, secp192_pubkeylist, data 
 
 
-def challenge_computation(points): 
-    input = bytes()
-    for point in points: 
-        if Secp256k1.is_on_curve(point):
-            input += point.x.to_bytes(Secp256k1.byte_size, 'big') + point.y.to_bytes(Secp256k1.byte_size, 'big')
-        elif Secp192r1.is_on_curve(point):
-            input += point.x.to_bytes(Secp192r1.byte_size, 'big') + point.y.to_bytes(Secp192r1.byte_size, 'big')
-        else : 
-            raise('point is not on any of the curves')
-    digest = hashlib.sha256(input).digest() 
-    return int.from_bytes(digest, 'big')
-
 def proof_verification(proof):
 
 #   Verification of the proofs for discrete logarithm equality across groups
@@ -89,6 +78,16 @@ def proof_verification(proof):
 #   Verification of the proofs for discrete logarithm equality of public key and commitments on SECP192r1
     dleq_inst_secp192r1 = DLEQ(Secp192r1)
     dleq_inst_secp192r1.proof_verification(proof["dleq_192"], C_192_proof, p_192_proof)
+
+def range_proof_verification(b_x, number_of_chunks, over_flow_bits):
+    # node bulletproof_gen.js verify ../../../outputs/participant/proofs/proof0.json 64
+    for index in range(number_of_chunks):
+        result = subprocess.run(
+        ["node", "./modules/bulletproofs/bulletproof.js", "verify", f"../../../outputs/participant/proofs/proof{index}.json", str( b_x - int(index == number_of_chunks -1) * over_flow_bits)],  # pass arguments
+        capture_output=True,
+        text=True
+        )
+    print("Range proofs verified")
 
 
 def compact_object(chunks):
@@ -165,6 +164,8 @@ def main():
     pubkeybtc, pubkeyweak, proof_data = load_public_keys(PROOF_DIR)
     # Before aggregating any key, the proofs must be verified 
     proof_verification(proof_data)
+    over_flow_bits = math.log2(number_of_entities)
+    range_proof_verification(b_x, number_of_chunks, over_flow_bits)
     # Will only aggregate values of the proofs are valid 
     agg_btc_point = aggregate_btc_pubkeys(pubkeybtc)
     print("Aggregated btc public key:", agg_btc_point.format().hex())
