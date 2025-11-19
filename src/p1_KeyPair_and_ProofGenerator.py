@@ -16,6 +16,42 @@ KEYS_DIR = "../outputs/participant/keys"
 SETUP_DIR = "../setup.json"
 PROOF_DIR = "../outputs/participant/proofs"
 
+
+CURRENT_PARTICIPANT_DIR = None
+
+def create_new_participant_dir():
+    #Create a new participant_N folder inside ../outputs/participant for this execution.
+    global CURRENT_PARTICIPANT_DIR
+    base = "../outputs/participant"
+    os.makedirs(base, exist_ok=True)
+    existing = []
+    for name in os.listdir(base):
+        m = re.match(r'^participant_(\d+)$', name)
+        if m:
+            existing.append(int(m.group(1)))
+    next_idx = max(existing) + 1 if existing else 1
+    participant_dir = os.path.join(base, f"participant_{next_idx}")
+    os.makedirs(participant_dir, exist_ok=True)
+    os.makedirs(os.path.join(participant_dir, "keys"), exist_ok=True)
+    os.makedirs(os.path.join(participant_dir, "proofs"), exist_ok=True)
+    CURRENT_PARTICIPANT_DIR = participant_dir
+    return participant_dir
+
+def get_latest_participant_dir():
+    # Return the most recently created participant_N directory (highest N).
+    base = "../outputs/participant"
+    if not os.path.exists(base):
+        raise FileNotFoundError(f"No participant base directory found: {base}")
+    existing = []
+    for name in os.listdir(base):
+        m = re.match(r'^participant_(\d+)$', name)
+        if m:
+            existing.append(int(m.group(1)))
+    if not existing:
+        raise FileNotFoundError(f"No participant_* directories found in {base}")
+    latest_idx = max(existing)
+    return os.path.join(base, f"participant_{latest_idx}")
+
 def load_setup():
     # Load setup data from JSON file
     if not os.path.exists(SETUP_DIR):
@@ -63,7 +99,10 @@ def bitcoinkeygen(seed, network):
     pub = priv.get_public_key()
    
     # create the directory if it doesn't exist
-    os.makedirs(KEYS_DIR, exist_ok=True)
+    # create a new participant folder for each run and use its keys subfolder
+    participant_dir = create_new_participant_dir()
+    keys_dir = os.path.join(participant_dir, "keys")
+    os.makedirs(keys_dir, exist_ok=True)
 
 
     # Extract x-coordinate from public key (uncompressed)
@@ -71,14 +110,14 @@ def bitcoinkeygen(seed, network):
     pub_x_hex = pub_hex_uncompressed[2:66]
     pub_x_int = int(pub_x_hex, 16)
 
-    # save privat key to file
-    priv_path = os.path.join(KEYS_DIR, f"private_key_{pub_x_int}_{network}_DO_NOT_SHARE.txt")
+    # save private key to file
+    priv_path = os.path.join(keys_dir, f"private_key_{pub_x_int}_{network}_DO_NOT_SHARE.txt")
     with open(priv_path, "w") as priv_file:
         priv_file.write(priv.to_wif(compressed=True))
 
 
 def derive_private_key():
-    priv_key_int = load_private_key(KEYS_DIR)
+    priv_key_int = load_private_key(os.path.join(get_latest_participant_dir(), "keys"))
     # Create EC private key object from integer
     priv_key = ec.derive_private_key(priv_key_int, ec.SECP256K1())
     return priv_key
@@ -114,9 +153,10 @@ def load_private_key(keys_dir):
 def bulletproof_generation(input, number_of_chunks, b_x, over_flow_bits):
     assert b_x > over_flow_bits, "Too many participants."
     # node bulletproof_gen.js gen ../../../outputs/participant/proofs/ 64  234324732543246 345843754395643756263453276453267 0
+    proofs_dir = os.path.join(get_latest_participant_dir(), "proofs")
     for index in range(number_of_chunks):
         result = subprocess.run(
-        ["node", "./modules/bulletproofs/bulletproof.js", "gen", "../../../outputs/participant/proofs/", str( b_x - int(index == number_of_chunks -1) * over_flow_bits), str(input["private_key_chunks"][index]), str(input["random_chunks"][index]), str(index)],  # pass arguments
+        ["node", "./modules/bulletproofs/bulletproof.js", "gen", proofs_dir, str( b_x - int(index == number_of_chunks -1) * over_flow_bits), str(input["private_key_chunks"][index]), str(input["random_chunks"][index]), str(index)],  # pass arguments
         capture_output=True,
         text=True
         )
@@ -141,7 +181,8 @@ def main():
     seed = seedgen()
     # Generation of Bitcoin private key (dg)
     bitcoinkeygen(seed, network)
-    print("Private key generated and saved successfully into ", KEYS_DIR)
+    keys_saved_dir = os.path.join(CURRENT_PARTICIPANT_DIR, "keys") if CURRENT_PARTICIPANT_DIR else KEYS_DIR
+    print("Private key generated and saved successfully into ", keys_saved_dir)
 
 def main_proofs():
     number_of_entities = 64
@@ -175,14 +216,15 @@ def main_proofs():
     }
     bulletproof_generation(bulletproof_input, number_of_chunks, b_x, over_flow_bits)
     SNARK_input = to_snark_input(SNARK_input)
-    if not os.path.exists(PROOF_DIR):
-        os.makedirs(PROOF_DIR)
-    with open(os.path.join(PROOF_DIR, f"proof_{private_key.public_key().public_numbers().x }.json"), "w") as proof_file:
+    proofs_dir = os.path.join(get_latest_participant_dir(), "proofs")
+    if not os.path.exists(proofs_dir):
+        os.makedirs(proofs_dir)
+    with open(os.path.join(proofs_dir, f"proof_{private_key.public_key().public_numbers().x }.json"), "w") as proof_file:
         proof_file.write(json.dumps(json_data))
-    with open(os.path.join(PROOF_DIR, f"input_SNARK_{private_key.public_key().public_numbers().x }.json"), "w") as input_file:
+    with open(os.path.join(proofs_dir, f"input_SNARK_{private_key.public_key().public_numbers().x }.json"), "w") as input_file:
         input_file.write(json.dumps(SNARK_input))
     
-    print("Proofs generated and saved successfully into ", PROOF_DIR)
+    print("Proofs generated and saved successfully into ", proofs_dir)
 
 if __name__ == "__main__":
     main()
