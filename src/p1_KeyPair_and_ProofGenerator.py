@@ -71,10 +71,7 @@ def bitcoinkeygen(seed, network):
     pub_x_hex = pub_hex_uncompressed[2:66]
     pub_x_int = int(pub_x_hex, 16)
 
-    # save public and private keys to files
-    pub_path = os.path.join(KEYS_DIR, f"public_key_{pub_x_int}_{network}_SHARE_THIS_FILE.txt")
-    with open(pub_path, "w") as pub_file:
-        pub_file.write(pub.to_hex(compressed=True))
+    # save privat key to file
     priv_path = os.path.join(KEYS_DIR, f"private_key_{pub_x_int}_{network}_DO_NOT_SHARE.txt")
     with open(priv_path, "w") as priv_file:
         priv_file.write(priv.to_wif(compressed=True))
@@ -139,12 +136,12 @@ def main():
         else:
             print("Invalid input. Please enter 't' for testnet or 'm' for mainnet.")
     
-    print("Generating your Key Pair and saving into .txt files...\n")
+    print("Generating your private key and saving into .txt files...\n")
     # Generation of seed
     seed = seedgen()
     # Generation of Bitcoin private key (dg)
     bitcoinkeygen(seed, network)
-    print("Key Pair generated and saved successfully into ", KEYS_DIR)
+    print("Private key generated and saved successfully into ", KEYS_DIR)
 
 def main_proofs():
     number_of_entities = 64
