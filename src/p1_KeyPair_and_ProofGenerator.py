@@ -1,21 +1,21 @@
-import os
-import re
 import json
+import os
+import secrets
 import math
+import re
 import subprocess
 from cryptography.hazmat.primitives.asymmetric import ec
-from bitcoinutils.keys import PrivateKey
 from bitcoinutils.setup import setup
+from bitcoinutils.keys import PrivateKey
 from modules.curves import Secp192r1, Secp256k1
 from modules.dleqag import DLEQAG
 from modules.dleq import DLEQ
 from modules.tools import to_snark_input
+
+KEYS_DIR = "../outputs/participant/keys"
 SETUP_DIR = "../setup.json"
 AGGKEY_DIR = "../outputs/participant"
-KEYS_DIR = "../outputs/participant/keys"
 PROOF_DIR = "../outputs/participant/proofs"
-
-
 
 def load_setup():
     # Load setup data from JSON file
@@ -27,7 +27,18 @@ def load_setup():
     
     return setup_data
 
-def seed_bits_calc():
+# seed bits calculation for key generation
+def seed_bits_calc_keygen():
+    setup_data = load_setup()
+    if setup_data is None:
+        return None
+    num_participants = setup_data.get("num_participants")
+    # Calculate bits of the seed (192-log2(n))
+    bits_seed = 192 - math.log2(num_participants)
+    return math.floor(bits_seed)
+
+# seed bits calculation for proof generation
+def seed_bits_calc_proofgen():
     setup_data = load_setup()
     if setup_data is None:
         return None
@@ -35,6 +46,40 @@ def seed_bits_calc():
     # Calculate bits of the seed (log2(n))
     bits_seed = math.log2(num_participants)
     return math.ceil(bits_seed)
+
+def seedgen():
+    # Use secrets to generate random bit sequence
+    seed = secrets.randbits(seed_bits_calc_keygen())
+    return seed
+
+def bitcoinkeygen(seed, network):
+    # always remember to setup the network
+    setup(network)
+
+    # create a private key (from our generated bits)
+    priv = PrivateKey(secret_exponent=seed)
+    # compressed is the default
+
+    # get the public key
+    pub = priv.get_public_key()
+   
+    # create the directory if it doesn't exist
+    os.makedirs(KEYS_DIR, exist_ok=True)
+
+
+    # Extract x-coordinate from public key (uncompressed)
+    pub_hex_uncompressed = pub.to_hex(compressed=False)
+    pub_x_hex = pub_hex_uncompressed[2:66]
+    pub_x_int = int(pub_x_hex, 16)
+
+    # save public and private keys to files
+    pub_path = os.path.join(KEYS_DIR, f"public_key_{pub_x_int}_{network}_SHARE_THIS_FILE.txt")
+    with open(pub_path, "w") as pub_file:
+        pub_file.write(pub.to_hex(compressed=True))
+    priv_path = os.path.join(KEYS_DIR, f"private_key_{pub_x_int}_{network}_DO_NOT_SHARE.txt")
+    with open(priv_path, "w") as priv_file:
+        priv_file.write(priv.to_wif(compressed=True))
+
 
 def derive_private_key():
     priv_key_int = load_private_key(KEYS_DIR)
@@ -81,13 +126,34 @@ def bulletproof_generation(input, number_of_chunks, b_x, over_flow_bits):
         )
 
 
-if __name__ == "__main__":
+def main():
+    print("Welcome to BHQC protocol!\n")
+    # Initialize Bitcoin network
+    while True:
+        net_choice = input("Select network: (m)ainnet or (t)estnet?: ").strip().lower()
+        if net_choice == "t":
+            network = "testnet"
+            break
+        elif net_choice == "m":
+            network = "mainnet"
+            break
+        else:
+            print("Invalid input. Please enter 't' for testnet or 'm' for mainnet.")
+    
+    print("Generating your Key Pair and saving into .txt files...\n")
+    # Generation of seed
+    seed = seedgen()
+    # Generation of Bitcoin private key (dg)
+    bitcoinkeygen(seed, network)
+    print("Key Pair generated and saved successfully into ", KEYS_DIR)
+
+def main_proofs():
     number_of_entities = 64
     number_of_chunks = 3
     b_x = 64 
     b_f = 3
     b_c = 124
-    over_flow_bits = seed_bits_calc()
+    over_flow_bits = seed_bits_calc_proofgen()
     private_key = derive_private_key()
     private_key_range = Secp192r1.field.n >> over_flow_bits
     dleqag_inst = DLEQAG(b_x, b_f, b_c, number_of_chunks, private_key_range, Secp256k1, Secp192r1)
@@ -120,3 +186,6 @@ if __name__ == "__main__":
     with open(os.path.join(PROOF_DIR, f"input_SNARK_{private_key.public_key().public_numbers().x }.json"), "w") as input_file:
         input_file.write(json.dumps(SNARK_input))
 
+if __name__ == "__main__":
+    main()
+    main_proofs()
