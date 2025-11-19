@@ -2,6 +2,7 @@ import os
 import re
 import json
 import math
+import subprocess
 from cryptography.hazmat.primitives.asymmetric import ec
 from bitcoinutils.keys import PrivateKey
 from bitcoinutils.setup import setup
@@ -16,7 +17,6 @@ PROOF_DIR = "../outputs/participant/proofs"
 
 
 
-# To do : handle the case of non-power of 2
 def load_setup():
     # Load setup data from JSON file
     if not os.path.exists(SETUP_DIR):
@@ -35,17 +35,6 @@ def seed_bits_calc():
     # Calculate bits of the seed (log2(n))
     bits_seed = math.log2(num_participants)
     return math.ceil(bits_seed)
-# over_flow_bits = math.log2(number_of_entities)
-over_flow_bits = seed_bits_calc()
-
-
-def aggregate_chunks(chunks):
-    for id in range(number_of_chunks):
-        if id == 0 :
-            result = chunks[id]
-        else: 
-            result += chunks[id] * (2 ** (id * b_x)) 
-    return result
 
 def derive_private_key():
     priv_key_int = load_private_key(KEYS_DIR)
@@ -81,6 +70,15 @@ def load_private_key(keys_dir):
     priv_key_int = wif_to_int(wif_key)
     return priv_key_int
 
+def bulletproof_generation(input, number_of_chunks, b_x, over_flow_bits):
+    assert b_x > over_flow_bits, "Too many participants."
+    # node bulletproof_gen.js gen ../../../outputs/participant/proofs/ 64  234324732543246 345843754395643756263453276453267 0
+    for index in range(number_of_chunks):
+        result = subprocess.run(
+        ["node", "./modules/bulletproofs/bulletproof.js", "gen", "../../../outputs/participant/proofs/", str( b_x - int(index == number_of_chunks -1) * over_flow_bits), str(input["private_key_chunks"][index]), str(input["random_chunks"][index]), str(index)],  # pass arguments
+        capture_output=True,
+        text=True
+        )
 
 
 if __name__ == "__main__":
@@ -89,10 +87,11 @@ if __name__ == "__main__":
     b_x = 64 
     b_f = 3
     b_c = 124
+    over_flow_bits = seed_bits_calc()
     private_key = derive_private_key()
     private_key_range = Secp192r1.field.n >> over_flow_bits
     dleqag_inst = DLEQAG(b_x, b_f, b_c, number_of_chunks, private_key_range, Secp256k1, Secp192r1)
-    dleqag_proof, SNARK_input = dleqag_inst.proof_gen(private_key.private_numbers().private_value)
+    dleqag_proof, SNARK_input, bulletproof_input = dleqag_inst.proof_gen(private_key.private_numbers().private_value)
     dleq_secp256k1_inst = DLEQ(Secp256k1)
     dleq_proof_secp256k1 = dleq_secp256k1_inst.proof_gen(dleqag_proof["r_HS"], private_key.private_numbers().private_value)
     dleq_secp192r1_inst = DLEQ(Secp192r1)
@@ -112,6 +111,7 @@ if __name__ == "__main__":
         "dleq_192": dleq_proof_secp192r1, 
         "dleq_256": dleq_proof_secp256k1
     }
+    bulletproof_generation(bulletproof_input, number_of_chunks, b_x, over_flow_bits)
     SNARK_input = to_snark_input(SNARK_input)
     if not os.path.exists(PROOF_DIR):
         os.makedirs(PROOF_DIR)

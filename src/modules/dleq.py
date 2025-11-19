@@ -4,7 +4,7 @@ import hashlib
 class DLEQ: 
     def __init__(self,curve ):
         self.curve = curve
-        self.curve_H = self.curve.map_to_point(self.curve.Gx.to_bytes(self.curve.byte_size, 'big') + self.curve.Gy.to_bytes(self.curve.byte_size, 'big'))
+        self.curve_H = self.curve.H()
 
         
     def proof_gen(self, given_random_value, secret ): 

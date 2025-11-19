@@ -12,7 +12,6 @@ function proof_gen(secret, random, range_in_bit_size){
     const low = 0n; 
     const G = ec.g;
     const H = ProofUtils.getnewGenFromHashingGen(G);
-    console.log(H);
     const V = ProofUtils.getPedersenCommitment(secret, random, secp256k1.n, H);
 
     const uncompr_proof = ProofFactory.computeBulletproof(secret, random, V, G, H, low, range_in_bit_size, secp256k1.n, false);

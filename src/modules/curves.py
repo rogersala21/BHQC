@@ -12,6 +12,8 @@ class Secp256k1:
     b  = 7
     Gx = 55066263022277343669578718895168534326250603453777594175500187360389116729240
     Gy = 32670510020758816978083085130507043184471273380659243275938904335757337482424
+    Hx = 34264814033909651989003842936431748872763123961948721947921336086716676129357
+    Hy = 70137578188327896362808924026457612440329189545289741447228687429885880029075
     byte_size = 32
     field = SubGroup(p, g =(Gx, Gy), n=n, h=1)
     curve = Curve(a, b, field, name='secp256k1')
@@ -19,6 +21,9 @@ class Secp256k1:
     @classmethod
     def generator(cls):
         return Point(cls.curve, cls.Gx, cls.Gy)
+    @classmethod
+    def H(cls):
+        return Point(cls.curve, cls.Hx, cls.Hy)
     @classmethod
     def map_to_point(cls, seed):
         while True:
@@ -66,6 +71,9 @@ class Secp192r1:
     @classmethod
     def generator(cls):
         return Point(cls.curve, cls.Gx, cls.Gy)
+    @classmethod
+    def H(cls):
+        return cls.map_to_point(cls.Gx.to_bytes(cls.byte_size, 'big') + cls.Gy.to_bytes(cls.byte_size, 'big'))
     @classmethod
     def map_to_point(cls, seed: bytes):
         while True:

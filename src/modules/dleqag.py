@@ -20,7 +20,7 @@ class DLEQAG:
     def proof_gen(self, secret: int):
         K_LS, K_HS, z, s_LS, s_HS, C_LS_proof, C_HS_proof, p_LS_proof, p_HS_proof = [], [], [], [], [], [], [], [], []
         r_HS, r_LS = [], []
-        HSCurve_H = self.HSCurve.map_to_point(self.HSCurve.Gx.to_bytes(self.HSCurve.byte_size, 'big') + self.HSCurve.Gy.to_bytes(self.HSCurve.byte_size, 'big'))
+        HSCurve_H = self.HSCurve.H()
         LSCurve_H = self.LSCurve.map_to_point(self.LSCurve.Gx.to_bytes(self.LSCurve.byte_size, 'big') + self.LSCurve.Gy.to_bytes(self.LSCurve.byte_size, 'big'))
         assert secret <= self.secret_range
 
@@ -48,7 +48,6 @@ class DLEQAG:
             C_HS_proof.append([(secret_chunks[chunk] * self.HSCurve.generator() + HSCurve_H * r_HS[chunk]).x, (secret_chunks[chunk] * self.HSCurve.generator() + HSCurve_H * r_HS[chunk]).y])
             p_LS_proof.append([(secret_chunks[chunk] * self.LSCurve.generator()).x, (secret_chunks[chunk] * self.LSCurve.generator()).y])
             p_HS_proof.append([(secret_chunks[chunk] * self.HSCurve.generator()).x, (secret_chunks[chunk] * self.HSCurve.generator()).y])
-
 
             for i in range(self.MAX_ITER):
                 # Generate fresh randomness
@@ -103,21 +102,25 @@ class DLEQAG:
             "s_LS": s_LS,
             "s_HS": s_HS, 
         }
+        bulletproof_input = {
+            "private_key_chunks": secret_chunks, 
+            "random_chunks": r_HS
+        }
         # zkSNARK proof parameters 
         snark_input = {
             "pub_key_point": points_to_str([P_HS.x, P_HS.y]),
             "private_key": str(secret), 
             "private_key_range": str(self.secret_range)
         }
-        return proof, snark_input
+        return proof, snark_input, bulletproof_input
 
     def proof_verification(self, proof):
         s_192 = proof["s_192"]
         s_256 = proof["s_256"]
         z = proof["z"]
         C_256 = self.HSCurve.array_to_point(proof["C_256"])
-        HSCurve_H = self.HSCurve.map_to_point(self.HSCurve.Gx.to_bytes(self.HSCurve.byte_size, 'big') + self.HSCurve.Gy.to_bytes(self.HSCurve.byte_size, 'big'))
-        LSCurve_H = self.LSCurve.map_to_point(self.LSCurve.Gx.to_bytes(self.LSCurve.byte_size, 'big') + self.LSCurve.Gy.to_bytes(self.LSCurve.byte_size, 'big'))
+        HSCurve_H = self.HSCurve.H()
+        LSCurve_H = self.LSCurve.H()
         K_192 = self.LSCurve.array_to_point(proof["K_192"])
         C_192 = self.LSCurve.array_to_point(proof["C_192"])
         K_256 = self.HSCurve.array_to_point(proof["K_256"])
