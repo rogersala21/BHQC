@@ -5,6 +5,8 @@ from bitcoinutils.keys import PrivateKey as BitcoinPrivateKey
 from bitcoinutils.utils import tweak_taproot_privkey
 from modules.descriptor import descsum_create
 from modules.curves import Secp256k1
+import os 
+import json
 
 def check_private_key(secp192r1_privatekey_raw, secp192r1_pub):
     secp192r1_processed = serialization.load_pem_private_key(
@@ -115,3 +117,13 @@ def to_snark_input(proof):
         "pub_key_point": pub_key_point
     }
     return circuit_input
+
+def load_setup(setup_dir):
+    # Load setup data from JSON file
+    if not os.path.exists(setup_dir):
+        print(f"Setup file not found: {setup_dir}")
+        return None
+    with open(setup_dir, "r") as setup_file:
+        setup_data = json.load(setup_file)
+    
+    return setup_data.get("max_num_participants"), setup_data.get("number_of_bits_of_secret_chunks"), setup_data.get("failure_rate"), setup_data.get("number_of_bits_of_challenge"), setup_data.get("number_of_chunks")

@@ -105,3 +105,11 @@ class Secp192r1:
             except:
                 raise("point not on curve")
         return points
+
+def compact_points(points, bit_shifts, number_of_points): 
+    for id in range(number_of_points):
+        if id == 0:
+            result = points[id]
+        else: 
+            result += points[id] * (2 ** (id * bit_shifts)) 
+    return result

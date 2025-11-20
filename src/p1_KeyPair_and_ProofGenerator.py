@@ -10,13 +10,9 @@ from bitcoinutils.keys import PrivateKey
 from modules.curves import Secp192r1, Secp256k1
 from modules.dleqag import DLEQAG
 from modules.dleq import DLEQ
-from modules.tools import to_snark_input
+from modules.tools import load_setup
 
-KEYS_DIR = "../outputs/participant/keys"
 SETUP_DIR = "../setup.json"
-PROOF_DIR = "../outputs/participant/proofs"
-
-
 CURRENT_PARTICIPANT_DIR = None
 
 def create_new_participant_dir():
@@ -52,39 +48,22 @@ def get_latest_participant_dir():
     latest_idx = max(existing)
     return os.path.join(base, f"participant_{latest_idx}"), latest_idx
 
-def load_setup():
-    # Load setup data from JSON file
-    if not os.path.exists(SETUP_DIR):
-        print(f"Setup file not found: {SETUP_DIR}")
-        return None
-    with open(SETUP_DIR, "r") as setup_file:
-        setup_data = json.load(setup_file)
-    
-    return setup_data
 
 # seed bits calculation for key generation
-def seed_bits_calc_keygen():
-    setup_data = load_setup()
-    if setup_data is None:
-        return None
-    num_participants = setup_data.get("num_participants")
+def seed_bits_calc_keygen(num_participants):
     # Calculate bits of the seed (192-log2(n))
-    bits_seed = 192 - math.log2(num_participants)
+    bits_seed = math.log2(Secp192r1.field.n) - math.log2(num_participants)
     return math.floor(bits_seed)
 
 # seed bits calculation for proof generation
-def seed_bits_calc_proofgen():
-    setup_data = load_setup()
-    if setup_data is None:
-        return None
-    num_participants = setup_data.get("num_participants")
+def seed_bits_calc_proofgen(num_participants):
     # Calculate bits of the seed (log2(n))
     bits_seed = math.log2(num_participants)
     return math.ceil(bits_seed)
 
-def seedgen():
+def seedgen(num_participants):
     # Use secrets to generate random bit sequence
-    seed = secrets.randbits(seed_bits_calc_keygen())
+    seed = secrets.randbits(seed_bits_calc_keygen(num_participants))
     return seed
 
 def bitcoinkeygen(seed, network):
@@ -150,15 +129,17 @@ def load_private_key(keys_dir):
     priv_key_int = wif_to_int(wif_key)
     return priv_key_int
 
-def bulletproof_generation(input, number_of_chunks, b_x, over_flow_bits):
+def bulletproof_generation(input, number_of_chunks, b_x, over_flow_bits, write_to_file = True):
     assert b_x > over_flow_bits, "Too many participants."
-    # node bulletproof_gen.js gen ../../../outputs/participant/proofs/ 64  234324732543246 345843754395643756263453276453267 0
-    path, _ = get_latest_participant_dir()
-    proofs_dir = os.path.join("../../"+path, "proofs/")
+    proofs_dir = "./"
+    script_path = os.path.join(os.path.dirname(__file__), "modules", "bulletproofs", "bulletproof.js")
+    if write_to_file:
+        path, _ = get_latest_participant_dir()
+        proofs_dir = os.path.join("../../"+path, "proofs/")
     proofs = []
     for index in range(number_of_chunks):
         result = subprocess.run(
-        ["node", f"./modules/bulletproofs/bulletproof.js", "gen", proofs_dir, str( b_x - int(index == number_of_chunks -1) * over_flow_bits), str(input["private_key_chunks"][index]), str(input["random_chunks"][index]), str(index), "1"],  # pass arguments
+        ["node", script_path, "gen", proofs_dir , str( b_x - int(index == number_of_chunks -1) * over_flow_bits), str(input["private_key_chunks"][index]), str(input["random_chunks"][index]), str(index), "1"],  # pass arguments
         capture_output=True,
         text=True
         )
@@ -170,8 +151,7 @@ def bulletproof_generation(input, number_of_chunks, b_x, over_flow_bits):
     return proofs
 
 
-def main():
-    print("Welcome to BHQC protocol!\n")
+def generate_private_key(max_number_of_participants):
     # Initialize Bitcoin network
     while True:
         net_choice = input("Select network: (m)ainnet or (t)estnet?: ").strip().lower()
@@ -186,30 +166,36 @@ def main():
     
     print("Generating your private key and saving into .txt files...\n")
     # Generation of seed
-    seed = seedgen()
+    seed = seedgen(max_number_of_participants)
     # Generation of Bitcoin private key (dg)
     bitcoinkeygen(seed, network)
     keys_saved_dir = os.path.join(CURRENT_PARTICIPANT_DIR, "keys") if CURRENT_PARTICIPANT_DIR else KEYS_DIR
     print("Private key generated and saved successfully into ", keys_saved_dir)
 
-def main_proofs():
-    number_of_entities = 64
-    number_of_chunks = 3
-    b_x = 64 
-    b_f = 3
-    b_c = 124
-    over_flow_bits = seed_bits_calc_proofgen()
+def main():
+    print("Welcome to HAGP protocol!\n")
+    max_number_of_entities, b_x, b_f, b_c, number_of_chunks  = load_setup(SETUP_DIR)
+    #  Generate bitocin private/public key according to the setup 
+    generate_private_key(max_number_of_entities) 
+    # Set the proof generation up 
+    over_flow_bits = seed_bits_calc_proofgen(max_number_of_entities)
     private_key, _ = derive_private_key()
+    # Proof generation process : 
     private_key_range = Secp192r1.field.n >> over_flow_bits
+    #       Proof generation for discrete logarithm equality over two curves 
     dleqag_inst = DLEQAG(b_x, b_f, b_c, number_of_chunks, private_key_range, Secp256k1, Secp192r1)
     dleqag_proof, SNARK_input, bulletproof_input = dleqag_inst.proof_gen(private_key.private_numbers().private_value)
+    #       Proof generation for discrete logarithm equality over Bitcoin  
     dleq_secp256k1_inst = DLEQ(Secp256k1)
     dleq_proof_secp256k1 = dleq_secp256k1_inst.proof_gen(dleqag_proof["r_HS"], private_key.private_numbers().private_value)
+    #       Proof generation for discrete logarithm equality over NIST192  
     dleq_secp192r1_inst = DLEQ(Secp192r1)
     dleq_proof_secp192r1 = dleq_secp192r1_inst.proof_gen(dleqag_proof["r_LS"],  private_key.private_numbers().private_value)
     json_data = {
         "pub_key_256": dleqag_proof["pub_key_HS"],
         "pub_key_192": dleqag_proof["pub_key_LS"],
+        "X_256": dleqag_proof["X_HS"],
+        "X_192": dleqag_proof["X_LS"],
         "p_256": dleqag_proof["p_HS"],
         "K_256": dleqag_proof["K_HS"],
         "C_256": dleqag_proof["C_HS"],
@@ -223,18 +209,14 @@ def main_proofs():
         "dleq_256": dleq_proof_secp256k1
     }
     bulletproof_generation(bulletproof_input, number_of_chunks, b_x, over_flow_bits)
-    SNARK_input = to_snark_input(SNARK_input)
     participant_dir , id = get_latest_participant_dir()
     proofs_dir = os.path.join(participant_dir, "proofs")
     if not os.path.exists(proofs_dir):
         os.makedirs(proofs_dir)
     with open(os.path.join(proofs_dir, f"proof_{private_key.public_key().public_numbers().x }.json"), "w") as proof_file:
         proof_file.write(json.dumps(json_data))
-    with open(os.path.join(proofs_dir, f"input_SNARK_{private_key.public_key().public_numbers().x }.json"), "w") as input_file:
-        input_file.write(json.dumps(SNARK_input))
     
     print("Proofs generated and saved successfully into ", proofs_dir)
 
 if __name__ == "__main__":
     main()
-    main_proofs()

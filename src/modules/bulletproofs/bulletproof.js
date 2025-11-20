@@ -30,7 +30,6 @@ function main(){
     const proof_file_dir = args[1] || "./";
     const file_path = path.join(__dirname, proof_file_dir);
     const range_in_bit = BigInt(args[2] || 0n); 
-
     if (functionality == "gen"){
         const secret = BigInt(args[3] || 0n);         
         const random = BigInt(args[4] || 0n); 
@@ -41,9 +40,11 @@ function main(){
         const proof_index = args[5] || 0;
         const std_out = args[6] || 0;
         proof = proof_gen(secret, random, range_in_bit);
-        fs.writeFileSync(`${file_path}range_proof_${proof_index}.json`, proof);
         if (std_out){
             console.log(proof);
+        }
+        else {
+            fs.writeFileSync(`${file_path}range_proof_${proof_index}.json`, proof);
         }
     }
     else if (functionality == "verify"){
