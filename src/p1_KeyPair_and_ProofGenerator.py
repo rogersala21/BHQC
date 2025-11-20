@@ -129,13 +129,11 @@ def load_private_key(keys_dir):
     priv_key_int = wif_to_int(wif_key)
     return priv_key_int
 
-def bulletproof_generation(input, number_of_chunks, b_x, over_flow_bits, write_to_file = True):
+def bulletproof_generation(input, number_of_chunks, b_x, over_flow_bits):
     assert b_x > over_flow_bits, "Too many participants."
-    proofs_dir = "./"
     script_path = os.path.join(os.path.dirname(__file__), "modules", "bulletproofs", "bulletproof.js")
-    if write_to_file:
-        path, _ = get_latest_participant_dir()
-        proofs_dir = os.path.join("../../"+path, "proofs/")
+    path, _ = get_latest_participant_dir()
+    proofs_dir = os.path.join("../../"+path, "proofs/")
     proofs = []
     for index in range(number_of_chunks):
         result = subprocess.run(

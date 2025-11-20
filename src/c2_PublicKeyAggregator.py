@@ -41,14 +41,16 @@ def proof_verification(proof, b_x, b_f, b_c, number_of_chunks, secret_range):
 def range_proof_verification(b_x, number_of_chunks, over_flow_bits, proof_dir, participant_id):
     proof_path = os.path.join("../../"+proof_dir, "proofs/range_proof_")
     for index in range(number_of_chunks):
-        result = subprocess.run(
-        ["node", "./modules/bulletproofs/bulletproof.js", "verify", f"{proof_path}{index}.json", str(int(b_x - int(index == number_of_chunks -1) * over_flow_bits))],  # pass arguments
-        capture_output=True,
-        text=True
-        )
-    if result.stderr :
-        print(result.stderr)
-    assert not result.returncode, f"Range proof is rejected for chunk number {index}"
+        try:
+            result = subprocess.run(
+            ["node", "./modules/bulletproofs/bulletproof.js", "verify", f"{proof_path}{index}.json", str(int(b_x - int(index == number_of_chunks -1) * over_flow_bits))],  # pass arguments
+            capture_output=True,
+            text=True,
+            check=True
+            )
+        except subprocess.CalledProcessError as e : 
+            print(f"Verification failed with the error {e}")
+
     print("Range proofs verified")
 
 

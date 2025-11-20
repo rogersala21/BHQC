@@ -38,14 +38,8 @@ function main(){
             process.exit(1);
         }
         const proof_index = args[5] || 0;
-        const std_out = args[6] || 0;
         proof = proof_gen(secret, random, range_in_bit);
-        if (std_out){
-            console.log(proof);
-        }
-        else {
-            fs.writeFileSync(`${file_path}range_proof_${proof_index}.json`, proof);
-        }
+        fs.writeFileSync(`${file_path}range_proof_${proof_index}.json`, proof);
     }
     else if (functionality == "verify"){
         if (range_in_bit == 0n){
