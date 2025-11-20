@@ -25,7 +25,7 @@ def create_new_participant_dir():
         m = re.match(r'^participant_(\d+)$', name)
         if m:
             existing.append(int(m.group(1)))
-    next_idx = max(existing) + 1 if existing else 1
+    next_idx = max(existing) + 1 if existing else 0
     participant_dir = os.path.join(base, f"participant_{next_idx}")
     os.makedirs(participant_dir, exist_ok=True)
     os.makedirs(os.path.join(participant_dir, "keys"), exist_ok=True)
