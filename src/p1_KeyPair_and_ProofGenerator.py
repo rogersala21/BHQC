@@ -50,7 +50,7 @@ def get_latest_participant_dir():
     if not existing:
         raise FileNotFoundError(f"No participant_* directories found in {base}")
     latest_idx = max(existing)
-    return os.path.join(base, f"participant_{latest_idx}")
+    return os.path.join(base, f"participant_{latest_idx}"), latest_idx
 
 def load_setup():
     # Load setup data from JSON file
@@ -100,8 +100,7 @@ def bitcoinkeygen(seed, network):
    
     # create the directory if it doesn't exist
     # create a new participant folder for each run and use its keys subfolder
-    participant_dir = create_new_participant_dir()
-    keys_dir = os.path.join(participant_dir, "keys")
+    keys_dir = os.path.join(create_new_participant_dir(), "keys")
     os.makedirs(keys_dir, exist_ok=True)
 
 
@@ -117,10 +116,11 @@ def bitcoinkeygen(seed, network):
 
 
 def derive_private_key():
-    priv_key_int = load_private_key(os.path.join(get_latest_participant_dir(), "keys"))
+    dir, id = get_latest_participant_dir()
+    priv_key_int = load_private_key(os.path.join(dir, "keys"))
     # Create EC private key object from integer
     priv_key = ec.derive_private_key(priv_key_int, ec.SECP256K1())
-    return priv_key
+    return priv_key, id
 
 def wif_to_int(wif):
     priv = PrivateKey(wif)
@@ -153,13 +153,21 @@ def load_private_key(keys_dir):
 def bulletproof_generation(input, number_of_chunks, b_x, over_flow_bits):
     assert b_x > over_flow_bits, "Too many participants."
     # node bulletproof_gen.js gen ../../../outputs/participant/proofs/ 64  234324732543246 345843754395643756263453276453267 0
-    proofs_dir = os.path.join(get_latest_participant_dir(), "proofs")
+    path, _ = get_latest_participant_dir()
+    proofs_dir = os.path.join("../../"+path, "proofs/")
+    proofs = []
     for index in range(number_of_chunks):
         result = subprocess.run(
-        ["node", "./modules/bulletproofs/bulletproof.js", "gen", proofs_dir, str( b_x - int(index == number_of_chunks -1) * over_flow_bits), str(input["private_key_chunks"][index]), str(input["random_chunks"][index]), str(index)],  # pass arguments
+        ["node", f"./modules/bulletproofs/bulletproof.js", "gen", proofs_dir, str( b_x - int(index == number_of_chunks -1) * over_flow_bits), str(input["private_key_chunks"][index]), str(input["random_chunks"][index]), str(index), "1"],  # pass arguments
         capture_output=True,
         text=True
         )
+        if (result.returncode == 0):
+            proofs.append(result.stdout)
+        else: 
+            print(result.stderr)
+            raise ValueError("Couldn't generate bulletproofs")
+    return proofs
 
 
 def main():
@@ -191,7 +199,7 @@ def main_proofs():
     b_f = 3
     b_c = 124
     over_flow_bits = seed_bits_calc_proofgen()
-    private_key = derive_private_key()
+    private_key, _ = derive_private_key()
     private_key_range = Secp192r1.field.n >> over_flow_bits
     dleqag_inst = DLEQAG(b_x, b_f, b_c, number_of_chunks, private_key_range, Secp256k1, Secp192r1)
     dleqag_proof, SNARK_input, bulletproof_input = dleqag_inst.proof_gen(private_key.private_numbers().private_value)
@@ -216,7 +224,8 @@ def main_proofs():
     }
     bulletproof_generation(bulletproof_input, number_of_chunks, b_x, over_flow_bits)
     SNARK_input = to_snark_input(SNARK_input)
-    proofs_dir = os.path.join(get_latest_participant_dir(), "proofs")
+    participant_dir , id = get_latest_participant_dir()
+    proofs_dir = os.path.join(participant_dir, "proofs")
     if not os.path.exists(proofs_dir):
         os.makedirs(proofs_dir)
     with open(os.path.join(proofs_dir, f"proof_{private_key.public_key().public_numbers().x }.json"), "w") as proof_file:

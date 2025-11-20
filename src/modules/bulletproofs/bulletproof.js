@@ -29,9 +29,9 @@ function main(){
     const functionality = args[0] || "help"; 
     const proof_file_dir = args[1] || "./";
     const file_path = path.join(__dirname, proof_file_dir);
+    const range_in_bit = BigInt(args[2] || 0n); 
 
     if (functionality == "gen"){
-        const range_in_bit = BigInt(args[2] || 0n); 
         const secret = BigInt(args[3] || 0n);         
         const random = BigInt(args[4] || 0n); 
         if (secret == 0n || range_in_bit == 0n || random == 0n){
@@ -39,8 +39,12 @@ function main(){
             process.exit(1);
         }
         const proof_index = args[5] || 0;
+        const std_out = args[6] || 0;
         proof = proof_gen(secret, random, range_in_bit);
-        fs.writeFileSync(`${file_path}proof${proof_index}.json`, proof);
+        fs.writeFileSync(`${file_path}range_proof_${proof_index}.json`, proof);
+        if (std_out){
+            console.log(proof);
+        }
     }
     else if (functionality == "verify"){
         if (range_in_bit == 0n){

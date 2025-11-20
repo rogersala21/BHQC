@@ -10,6 +10,7 @@ import math
 from modules.dleqag import DLEQAG
 from modules.dleq import DLEQ
 from modules.curves import Secp192r1, Secp256k1
+from p1_KeyPair_and_ProofGenerator import get_latest_participant_dir
 PROOF_DIR = "../outputs/participant/proofs"
 OUTPUTS_DIR = "../outputs/coordinator/key_agg_output"
 
@@ -24,10 +25,12 @@ b_g = 192
 
 def load_public_keys(proof_dir):
     btc_pubkeylist = []
+    print(proof_dir)
     secp192_pubkeylist = []
     for filename in os.listdir(proof_dir):
         file_path = os.path.join(proof_dir, filename)
         if os.path.isfile(file_path) and filename.startswith("proof_") and filename.endswith(".json"):
+            print(file_path)
             with open(file_path, "r") as f:
                 data = json.load(f)
 
@@ -79,14 +82,18 @@ def proof_verification(proof):
     dleq_inst_secp192r1 = DLEQ(Secp192r1)
     dleq_inst_secp192r1.proof_verification(proof["dleq_192"], C_192_proof, p_192_proof)
 
-def range_proof_verification(b_x, number_of_chunks, over_flow_bits):
-    # node bulletproof_gen.js verify ../../../outputs/participant/proofs/proof0.json 64
+def range_proof_verification(b_x, number_of_chunks, over_flow_bits, proof_dir, participant_id):
+    proof_path = os.path.join("../../"+proof_dir, "proofs/range_proof_")
     for index in range(number_of_chunks):
+        print(str(int(b_x - int(index == number_of_chunks -1) * over_flow_bits)))
         result = subprocess.run(
-        ["node", "./modules/bulletproofs/bulletproof.js", "verify", f"../../../outputs/participant/proofs/proof{index}.json", str( b_x - int(index == number_of_chunks -1) * over_flow_bits)],  # pass arguments
+        ["node", "./modules/bulletproofs/bulletproof.js", "verify", f"{proof_path}{index}.json", str(int(b_x - int(index == number_of_chunks -1) * over_flow_bits))],  # pass arguments
         capture_output=True,
         text=True
         )
+    if result.stderr :
+        print(result.stderr)
+    assert not result.returncode, f"Range proof is rejected for chunk number {index}"
     print("Range proofs verified")
 
 
@@ -161,11 +168,17 @@ def is_generator_point_secp192r1(point):
 
 
 def main():
-    pubkeybtc, pubkeyweak, proof_data = load_public_keys(PROOF_DIR)
+    dir , number_of_participants = get_latest_participant_dir()
+    #  For now we assume we are checking the last participant's proof 
+    participant_id = number_of_participants
+    proof_dir = dir[:-1]
+    participant_dir = proof_dir + str(participant_id)
+    pubkeybtc, pubkeyweak, proof_data = load_public_keys(participant_dir + "/proofs/")
     # Before aggregating any key, the proofs must be verified 
     proof_verification(proof_data)
     over_flow_bits = math.log2(number_of_entities)
-    range_proof_verification(b_x, number_of_chunks, over_flow_bits)
+
+    range_proof_verification(b_x, number_of_chunks, over_flow_bits, proof_dir, participant_id)
     # Will only aggregate values of the proofs are valid 
     agg_btc_point = aggregate_btc_pubkeys(pubkeybtc)
     print("Aggregated btc public key:", agg_btc_point.format().hex())
