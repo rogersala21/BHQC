@@ -20,8 +20,8 @@ class DLEQ:
         proof = {
             "R":  [R_p.x, R_p.y], 
             "R_c": [R_c.x, R_c.y],
-            "alpha": sigma, 
-            "alpha_c": delta
+            "sigma": sigma, 
+            "delta": delta
         }
         return proof
 
@@ -29,10 +29,10 @@ class DLEQ:
         R = self.curve.get_point(proof["R"][0], proof["R"][1])
         R_c = self.curve.get_point(proof["R_c"][0], proof["R_c"][1])
         challenge = self.challenge_computation([R, R_c]) 
-        lhs = proof["alpha"] * self.curve.generator() 
+        lhs = proof["sigma"] * self.curve.generator() 
         rhs = R + challenge * point
         assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment"
-        rhs = proof["alpha"] * self.curve.generator() + proof["alpha_c"] * self.curve_H
+        rhs = proof["sigma"] * self.curve.generator() + proof["delta"] * self.curve_H
         lhs = R_c + challenge * commitment
         assert lhs.x == rhs.x and lhs.y == rhs.y, "Check failed for the equality of private key and the commitment with blinding factor"
         print(f"DLEQ verified for curve {self.curve.name}")

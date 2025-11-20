@@ -15,7 +15,6 @@ def load_public_keys(proof_dir):
     for filename in os.listdir(proof_dir):
         file_path = os.path.join(proof_dir, filename)
         if os.path.isfile(file_path) and filename.startswith("proof_") and filename.endswith(".json"):
-            print(file_path)
             with open(file_path, "r") as f:
                 data = json.load(f)
                 btc_pubkey = data.get("pub_key_256")
@@ -23,7 +22,6 @@ def load_public_keys(proof_dir):
 
 
     return Secp256k1.get_point(btc_pubkey[0], btc_pubkey[1]), Secp192r1.get_point(secp192_pubkey[0], secp192_pubkey[1]), data 
-
 
 def proof_verification(proof, b_x, b_f, b_c, number_of_chunks, secret_range):
 

@@ -18,7 +18,7 @@ class DLEQAG:
         self.LSCurve = LSCurve
     
     def proof_gen(self, secret: int):
-        K_LS, K_HS, z, s_LS, s_HS, C_LS_proof, C_HS_proof, p_LS_proof, p_HS_proof = [], [], [], [], [], [], [], [], []
+        K_LS, K_HS, z, s_LS, s_HS, C_LS_proof, C_HS_proof = [], [], [], [], [], [], []
         r_HS, r_LS = [], []
         HSCurve_H = self.HSCurve.H()
         LSCurve_H = self.LSCurve.map_to_point(self.LSCurve.Gx.to_bytes(self.LSCurve.byte_size, 'big') + self.LSCurve.Gy.to_bytes(self.LSCurve.byte_size, 'big'))
@@ -46,8 +46,6 @@ class DLEQAG:
 
             C_LS_proof.append([(secret_chunks[chunk] * self.LSCurve.generator() + LSCurve_H * r_LS[chunk]).x, (secret_chunks[chunk] * self.LSCurve.generator() + LSCurve_H * r_LS[chunk]).y])
             C_HS_proof.append([(secret_chunks[chunk] * self.HSCurve.generator() + HSCurve_H * r_HS[chunk]).x, (secret_chunks[chunk] * self.HSCurve.generator() + HSCurve_H * r_HS[chunk]).y])
-            p_LS_proof.append([(secret_chunks[chunk] * self.LSCurve.generator()).x, (secret_chunks[chunk] * self.LSCurve.generator()).y])
-            p_HS_proof.append([(secret_chunks[chunk] * self.HSCurve.generator()).x, (secret_chunks[chunk] * self.HSCurve.generator()).y])
 
             for i in range(self.MAX_ITER):
                 # Generate fresh randomness
@@ -92,9 +90,7 @@ class DLEQAG:
             "pub_key_LS": [P_LS.x, P_LS.y],
             "X_HS": [C_HS_summed.x, C_HS_summed.y], 
             "X_LS": [C_LS_summed.x, C_LS_summed.y],
-            "p_HS": p_HS_proof,
             "r_HS": r_HS_summed,
-            "p_LS": p_LS_proof,
             "r_LS": r_LS_summed,
             "K_HS": K_HS,
             "K_LS": K_LS,
