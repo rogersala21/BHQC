@@ -1,4 +1,6 @@
 import os
+import hashlib
+import json
 from bitcoinutils.setup import setup
 from bitcoinutils.keys import PublicKey
 from bitcoinutils.utils import tweak_taproot_pubkey, tagged_hash
@@ -7,28 +9,70 @@ from bitcoinutils.transactions import Transaction, TxInput, TxOutput, TxWitnessI
 from bitcoinutils.keys import PrivateKey
 from bitcoinutils.script import Script
 
-AGGKEY_DIR = "../outputs/coordinator/key_agg_output/aggregation_output.txt"
+def coords_to_compressed(pub_coords):
+    #transform point coordinates to compressed pubkey
+    x, y = pub_coords
+    x_bytes = x.to_bytes(32, "big")          
+    y_odd = y & 1
+    prefix = b'\x03' if y_odd else b'\x02'
+    comp = prefix + x_bytes
+    return comp.hex(), comp
 
-def create_commitment_from_folder(folder_path):
-    commitment = ''
-    for filename in sorted(os.listdir(folder_path)):
-        file_path = os.path.join(folder_path, filename)
-        if os.path.isfile(file_path):
-            with open(file_path, 'r') as f:
-                commitment += ''.join(line.strip() for line in f)
-    return commitment
+def load_internal_pubkey_hex_from_ipfs():
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    ipfs_path = os.path.join(base_dir, 'outputs', 'IPFS.json')
+    with open(ipfs_path, 'r') as f:
+        j = json.load(f)
+    # adjust path if your JSON structure differs
+    pub_coords = j['dleqag_proofs'][0]['pub_key_256']
+    hex_str, _ = coords_to_compressed(pub_coords)
+    return hex_str
 
-def get_agg_key(file_path):
-    if os.path.isfile(file_path):
-        with open(file_path, 'r') as f:
-            return f.readline().strip() or None
-    return None
+
+def compute_sha256_of_ipfs_file():
+    #do the double sha256 of IPFS.json
+    
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    ipfs_path = os.path.join(base_dir, 'outputs', 'IPFS.json')
+    with open(ipfs_path, 'rb') as f:
+        data = f.read()
+    hash = hashlib.sha256(data).digest()
+    return hash, hash.hex()
+
+
+def tweak_public_key(tweak, agg_key_hex):
+     # Load internal public key
+    internal_pubkey = PublicKey(agg_key_hex)
+    internal_pubkey_bytes = internal_pubkey.to_bytes()
+    
+    #Ensure x-only (32 bytes)
+    if len(internal_pubkey_bytes) == 33:
+        xonly = internal_pubkey_bytes[1:]
+    else:
+        xonly = internal_pubkey_bytes
+
+    # Generate the tweak using tagged_hash
+    tap_tweak = tagged_hash(xonly + tweak, "TapTweak")  # We ensure that the tweak is derived from the internal public key and the commitment message (unique)
+    tweak_int = int.from_bytes(tap_tweak, 'big')
+
+    # Tweak the internal public key
+    tweaked_pubkey_bytes, is_odd = tweak_taproot_pubkey(internal_pubkey_bytes,tweak_int)  # Returns tweaked public key bytes and whether the y-coordinate is odd or even
+    prefix = b'\x03' if is_odd else b'\x02'  # Add prefix for compressed format
+    compressed_key = prefix + tweaked_pubkey_bytes
+    tweaked_pubkey_hex = compressed_key.hex()
+
+    # Create tweaked public key and taproot address
+    tweaked_pubkey = PublicKey.from_hex(tweaked_pubkey_hex)
+    taproot_address = tweaked_pubkey.get_taproot_address()
+    print("Honeypot Address:", taproot_address.to_string())
+
+    return taproot_address
 
 def create_op_return_tx(network, taproot_address):
     # always remember to setup the network
     setup(network)
     while True:
-        response = input("Enter the private key WIF: ")
+        response = input("Creating the honeypot funding transaction, please enter your private key WIF: ")
         try:
             priv = PrivateKey(response)
             print("Private key:", priv.to_wif())
@@ -52,7 +96,7 @@ def create_op_return_tx(network, taproot_address):
 
     txin = TxInput(txid, vout)
 
-    plain_text = input("Enter the OP_RETURN message (plain text): ").strip()
+    plain_text = input("Enter the OP_RETURN message (IPFS CID): ").strip()
     op_return_script = ["OP_RETURN", plain_text.encode('utf-8').hex()]
     op_return_script = Script(op_return_script)
     op_return_output = TxOutput(0, op_return_script)
@@ -66,14 +110,15 @@ def create_op_return_tx(network, taproot_address):
     tx.witnesses.append(TxWitnessInput([sig]))
 
     if network == "testnet":
-        explorer_url = "https://mempool.space/testnet4/tx/preview#hex="
+        explorer_url = "https://mempool.space/testnet4/tx/preview#tx="
     else:
-        explorer_url = "https://mempool.space/tx/preview#hex="
+        explorer_url = "https://mempool.space/tx/preview#tx="
 
     print(f"\nRaw signed transaction ready to preview and broadcast here: {explorer_url}" + tx.serialize())
+    print(f"\nCheck your IPFS upload here: https://ipfs.io/ipfs/" + plain_text)
 
 
-def main(ask_create_op_return=True):
+if __name__ == '__main__':
     # Initialize Bitcoin network
     while True:
         net_choice = input("Select network: (m)ainnet or (t)estnet?: ").strip().lower()
@@ -87,62 +132,8 @@ def main(ask_create_op_return=True):
             print("Invalid input. Please enter 't' for testnet or 'm' for mainnet.")
 
     setup(network)
+    agg_key_hex = load_internal_pubkey_hex_from_ipfs()
+    digest_bytes, digest_hex = compute_sha256_of_ipfs_file()
+    taproot_address = tweak_public_key(digest_bytes, agg_key_hex)
+    create_op_return_tx(network, taproot_address)
 
-    # Get commitments from both folders (aggregated pubkey, and all ecies outputs)
-    commitment1 = create_commitment_from_folder('../outputs/coordinator/key_agg_output')
-    commitment2 = create_commitment_from_folder('../outputs/coordinator/honeypot_commitment')
-
-    # Concatenate both commitments
-    combined_commitment = commitment1 + commitment2
-    combined_commitment_bytes = combined_commitment.encode('utf-8')
-
-    #Get the aggregated public key from the coordinator output
-    agg_key_hex = get_agg_key(AGGKEY_DIR)
-
-
-    # Load internal public key
-    internal_pubkey = PublicKey(agg_key_hex)
-    internal_pubkey_bytes = internal_pubkey.to_bytes()
-
-    # Generate the tweak using tagged_hash
-    # Correct argument order: (data, tag)
-    # Tagged hash is used to create a unique tweak based on the internal public key and the commitment message
-    tap_tweak = tagged_hash(internal_pubkey_bytes + combined_commitment_bytes, "TapTweak")  # We ensure that the tweak is derived from the internal public key and the commitment message (unique)
-    # TapTweak is a tag added to the data before hashing, used for protocol-specific tweaks, without tagging, if you hash the same data in different contexts, the output hashes could collide or be misinterpreted.
-    print("Taproot tweak (hex):", tap_tweak.hex())
-    tweak_int = int.from_bytes(tap_tweak, 'big')
-
-    # Tweak the internal public key
-    tweaked_pubkey_bytes, is_odd = tweak_taproot_pubkey(internal_pubkey_bytes,tweak_int)  # Returns tweaked public key bytes and whether the y-coordinate is odd or even
-    prefix = b'\x03' if is_odd else b'\x02'  # Add prefix for compressed format
-    compressed_key = prefix + tweaked_pubkey_bytes
-    tweaked_pubkey_hex = compressed_key.hex()
-
-    # Create tweaked public key and taproot address
-    tweaked_pubkey = PublicKey.from_hex(tweaked_pubkey_hex)
-    taproot_address = tweaked_pubkey.get_taproot_address()
-    print("Taproot address from tweaked public key:", taproot_address.to_string())
-
-    #Save the taproot address to a file
-    with open('../outputs/coordinator/honeypot_address.txt', 'w') as f:
-        f.write(taproot_address.to_string())
-    print("Taproot address saved to ../outputs/coordinator/honeypot_address.txt" '\n')
-
-
-    #OP_RETURN tx for funding honeypot give the coordinator the option to generate a tx with op_ret
-    if ask_create_op_return:
-        while True:
-            response = input("Do you want to generate a funding transaction to the honeypot with OP_RETURN data? (yes/no): ")
-            if response.lower() == "yes":
-                create_op_return_tx(network, taproot_address)
-                break
-            elif response.lower() == "no":
-                print("Exiting...")
-                break
-            else:
-                print("Invalid input. Please enter 'yes' or 'no'.")
-
-    return network, taproot_address.to_string(), tweak_int
-
-if __name__ == "__main__":
-    main()
