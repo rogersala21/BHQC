@@ -101,7 +101,7 @@ def create_op_return_tx(network, taproot_address):
     op_return_script = Script(op_return_script)
     op_return_output = TxOutput(0, op_return_script)
 
-    pay_amount_btc = float(input("Enter the payment output amount (in BTC): ").strip())
+    pay_amount_btc = float(input("Enter the payment output amount (in BTC) (!!!REMINDER: the rest will be the fee!!!): ").strip())
     payment_output = TxOutput(to_satoshis(pay_amount_btc), to_address.to_script_pub_key())
 
     tx = Transaction([txin], [op_return_output, payment_output], has_segwit=True)
