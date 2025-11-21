@@ -30,7 +30,7 @@ def load_internal_pubkey_hex_from_ipfs():
 
 
 def compute_sha256_of_ipfs_file():
-    #do the double sha256 of IPFS.json
+    #do the sha256 of IPFS.json
     
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     ipfs_path = os.path.join(base_dir, 'outputs', 'IPFS.json')
